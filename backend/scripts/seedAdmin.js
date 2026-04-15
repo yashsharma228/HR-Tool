@@ -2,6 +2,7 @@ require("dotenv").config();
 const connectDB = require("../config/db");
 const User = require("../models/User");
 const Admin = require("../models/Admin");
+const { sendWelcomeEmail } = require("../utils/emailService");
 
 const seedAdmin = async () => {
   try {
@@ -12,31 +13,47 @@ const seedAdmin = async () => {
     const adminName = process.env.ADMIN_NAME || "System Admin";
 
     // Check if admin exists in the Admin collection.
-    const existing = await Admin.findOne({ email: adminEmail });
-    if (existing) {
-      existing.name = adminName;
-      existing.password = adminPassword; // Model pre-save hook hashes it
-      existing.role = "admin";
-      if (!existing.dateOfJoining) {
-        existing.dateOfJoining = new Date();
+    let admin = await Admin.findOne({ email: adminEmail });
+    if (admin) {
+      admin.name = adminName;
+      admin.password = adminPassword; // Model pre-save hook hashes it
+      admin.role = "admin";
+      if (!admin.dateOfJoining) {
+        admin.dateOfJoining = new Date();
       }
-      await existing.save();
-      console.log(`Admin credentials synced in Admin collection: ${existing.email}`);
-      process.exit(0);
+      await admin.save();
+      console.log(`Admin credentials synced in Admin collection: ${admin.email}`);
+    } else {
+      // Remove legacy admin in User collection to keep admin data in one place.
+      await User.deleteOne({ email: adminEmail, role: "admin" });
+
+      admin = await Admin.create({
+        name: adminName,
+        email: adminEmail,
+        password: adminPassword, // Model will hash this on save
+        role: "admin",
+        dateOfJoining: new Date(),
+      });
+      console.log(`Admin created in Admin collection: ${admin.email}`);
     }
 
-    // Remove legacy admin in User collection to keep admin data in one place.
-    await User.deleteOne({ email: adminEmail, role: "admin" });
-
-    const admin = await Admin.create({
-      name: adminName,
-      email: adminEmail,
-      password: adminPassword, // Model will hash this on save
-      role: "admin",
-      dateOfJoining: new Date(),
+    // Always send welcome email when seeding/syncing admin
+    console.log(`Sending welcome email to admin: ${admin.email}...`);
+    const emailResult = await sendWelcomeEmail({
+      _id: admin._id,
+      name: admin.name,
+      email: admin.email,
+      role: admin.role,
+      dateOfJoining: admin.dateOfJoining,
+      leaveBalance: 0
     });
+    
+    if (emailResult.success) {
+      console.log('Welcome email sent successfully');
+    } else {
+      console.warn('Welcome email failed:', emailResult.message || emailResult.error);
+    }
 
-    console.log(`Admin created in Admin collection: ${admin.email}`);
     process.exit(0);
   } catch (error) {
     console.error("Failed to seed admin:", error.message);

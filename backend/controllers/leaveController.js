@@ -31,13 +31,15 @@ exports.applyLeave = async (req, res) => {
     reason: reason || '',
   });
 
-  // Send email notifications
+  // Send email notifications asynchronously to improve performance
   try {
-    // Notify HR/Admin BEFORE approval
-    await sendAdminLeaveNotification(currentUser, leave);
+    // Notify HR/Admin BEFORE approval (non-blocking)
+    sendAdminLeaveNotification(currentUser, leave).catch(e => 
+      console.error('Failed to send admin leave notification:', e.message)
+    );
 
-    // Notify Employee (Application Confirmation)
-    await sendEmail({
+    // Notify Employee (Application Confirmation) (non-blocking)
+    sendEmail({
       to: currentUser.email,
       subject: 'Leave Application Received',
       text: `Dear ${currentUser.name},\n\nYour leave request for ${leaveType} from ${startDate} to ${endDate} (${totalDays} days) has been received and is currently under review by HR.\n\nReason: ${reason || 'N/A'}\n\nBest regards,\nHR Team`,
@@ -56,9 +58,9 @@ exports.applyLeave = async (req, res) => {
           <p>Best regards,<br/><strong>HR Team</strong></p>
         </div>
       `
-    });
+    }).catch(e => console.error('Failed to send leave confirmation email:', e.message));
   } catch (e) {
-    console.error('Failed to send leave emails:', e.message);
+    console.error('Error initiating leave emails:', e.message);
   }
   res.status(201).json(leave);
 };
@@ -161,11 +163,15 @@ exports.updateLeaveStatus = async (req, res) => {
   if (status === 'Approved') {
     user.leaveBalance -= leave.totalDays;
     await user.save();
-    // Notify Employee AFTER approval
-    await sendLeaveApprovalEmail(user, leave);
+    // Notify Employee AFTER approval asynchronously
+    sendLeaveApprovalEmail(user, leave).catch(err => 
+      console.error('Failed to send leave approval email:', err.message)
+    );
   } else {
-    // Notify Employee if rejected
-    await sendLeaveRejectionEmail(user, leave);
+    // Notify Employee if rejected asynchronously
+    sendLeaveRejectionEmail(user, leave).catch(err => 
+      console.error('Failed to send leave rejection email:', err.message)
+    );
   }
 
   res.json(leave);

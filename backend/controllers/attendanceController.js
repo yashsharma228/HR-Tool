@@ -27,13 +27,13 @@ exports.markAttendance = async (req, res) => {
     status,
   });
 
-  // Send email notifications
+  // Send email notifications asynchronously to improve performance
   try {
     const User = require('../models/User');
     const user = await User.findById(req.user.userId);
     if (user) {
-      // Notify Employee (Attendance Confirmation)
-      await sendEmail({
+      // Notify Employee (Attendance Confirmation) (non-blocking)
+      sendEmail({
         to: user.email,
         subject: `Attendance Confirmation - ${recordDate.toDateString()}`,
         text: `Dear ${user.name},\n\nYour attendance for ${recordDate.toDateString()} has been recorded as: ${status}.\n\nThank you,\nHR Tool Team`,
@@ -49,13 +49,15 @@ exports.markAttendance = async (req, res) => {
             <p style="margin-top: 20px;">Best regards,<br/><strong>HR Team</strong></p>
           </div>
         `
-      });
+      }).catch(err => console.error('Failed to send attendance confirmation email:', err.message));
 
-      // Notify Admin (Professional fully explained message)
-      await sendAdminAttendanceNotification(user, attendance);
+      // Notify Admin (non-blocking)
+      sendAdminAttendanceNotification(user, attendance).catch(err => 
+        console.error('Failed to send admin attendance notification:', err.message)
+      );
     }
   } catch (e) {
-    console.error('Failed to send attendance emails:', e.message);
+    console.error('Error initiating attendance emails:', e.message);
   }
   res.status(201).json(attendance);
 };

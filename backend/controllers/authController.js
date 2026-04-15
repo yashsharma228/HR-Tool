@@ -68,9 +68,12 @@ exports.register = async (req, res) => {
     }
     console.log('User saved successfully:', email);
 
-    await sendWelcomeEmail(sanitizeUser(user));
+    // Send welcome email asynchronously to improve performance
+    sendWelcomeEmail(sanitizeUser(user)).catch(err => 
+      console.error('Failed to send welcome email:', err.message)
+    );
 
-    const token = getToken(user);
+    const token = getToken(user, user.role);
     console.log('Registration successful for:', email);
     res.status(201).json({ token, user: sanitizeUser(user) });
   } catch (error) {
