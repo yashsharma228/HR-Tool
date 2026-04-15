@@ -12,6 +12,7 @@ export default function Signup() {
     dateOfJoining: "",
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -40,8 +41,25 @@ export default function Signup() {
           value={form.name} onChange={handleChange} />
         <input type="email" name="email" placeholder="Email" required className="w-full border px-3 py-2 rounded"
           value={form.email} onChange={handleChange} />
-        <input type="password" name="password" placeholder="Password" required className="w-full border px-3 py-2 rounded"
-          value={form.password} onChange={handleChange} />
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            name="password"
+            placeholder="Password"
+            required
+            className="w-full border px-3 py-2 rounded pr-10"
+            value={form.password}
+            onChange={handleChange}
+          />
+          <button
+            type="button"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-500"
+            onClick={() => setShowPassword((v) => !v)}
+            tabIndex={-1}
+          >
+            {showPassword ? "Hide" : "See"}
+          </button>
+        </div>
         <input type="date" name="dateOfJoining" required className="w-full border px-3 py-2 rounded"
           value={form.dateOfJoining} onChange={handleChange} />
         <button type="submit" disabled={loading}

@@ -5,7 +5,6 @@ import AttendanceAnalytics from "./pages/AttendanceAnalytics";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
 import Signup from "./pages/Signup";
 
 import AdminDashboard from "./pages/AdminDashboard";
@@ -25,7 +24,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+          {/* ForgotPassword route removed */}
           <Route path="/signup" element={<Signup />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/profile" element={<Profile />} />
