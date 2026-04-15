@@ -1,0 +1,53 @@
+* Host localhost:5000 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+*   Trying [::1]:5000...
+* Established connection to localhost (::1 port 5000) from ::1 port 58865 
+* using HTTP/1.x
+=> Send header, 144 bytes (0x90)
+0000: POST /api/auth/login HTTP/1.1
+001f: Host: localhost:5000
+0035: User-Agent: curl/8.18.0
+004e: Accept: */*
+005b: Content-Type: application/json
+007b: Content-Length: 2
+008e: 
+=> Send data, 2 bytes (0x2)
+0000: {\
+* upload completely sent off: 2 bytes
+<= Recv header, 26 bytes (0x1a)
+0000: HTTP/1.1 400 Bad Request
+<= Recv header, 23 bytes (0x17)
+0000: X-Powered-By: Express
+<= Recv header, 32 bytes (0x20)
+0000: Access-Control-Allow-Origin: *
+<= Recv header, 47 bytes (0x2f)
+0000: Content-Type: application/json; charset=utf-8
+<= Recv header, 21 bytes (0x15)
+0000: Content-Length: 759
+<= Recv header, 43 bytes (0x2b)
+0000: ETag: W/"2f7-AQEzT/BQvC1czFrvxpflIrKrnkM"
+<= Recv header, 37 bytes (0x25)
+0000: Date: Wed, 15 Apr 2026 12:31:01 GMT
+<= Recv header, 24 bytes (0x18)
+0000: Connection: keep-alive
+<= Recv header, 23 bytes (0x17)
+0000: Keep-Alive: timeout=5
+<= Recv header, 2 bytes (0x2)
+0000: 
+<= Recv data, 759 bytes (0x2f7)
+0000: {"message":"Expected property name or '}' in JSON at position 1"
+0040: ,"stack":"SyntaxError: Expected property name or '}' in JSON at 
+0080: position 1\n    at JSON.parse (<anonymous>)\n    at parse (/app/
+00c0: node_modules/body-parser/lib/types/json.js:72:19)\n    at /app/n
+0100: ode_modules/body-parser/lib/read.js:162:18\n    at AsyncResource
+0140: .runInAsyncScope (node:async_hooks:206:9)\n    at invokeCallback
+0180:  (/app/node_modules/raw-body/index.js:238:16)\n    at done (/app
+01c0: /node_modules/raw-body/index.js:227:7)\n    at IncomingMessage.o
+0200: nEnd (/app/node_modules/raw-body/index.js:287:7)\n    at Incomin
+0240: gMessage.emit (node:events:524:28)\n    at endReadableNT (node:i
+0280: nternal/streams/readable:1698:12)\n    at process.processTicksAn
+02c0: dRejections (node:internal/process/task_queues:82:21)"}
+* Connection #0 to host localhost:5000 left intact
+* URL rejected: Port number was not a decimal number between 0 and 65535
+* closing connection #-1
