@@ -15,6 +15,12 @@ app.use(express.json());
 connectDB();
 
 
+
+// Root route for deployment check
+app.get('/', (req, res) => {
+  res.send('Backend deployed successfully! HR Tool API is running.');
+});
+
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/leaves', require('./routes/leaveRoutes'));

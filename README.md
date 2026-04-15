@@ -3,35 +3,24 @@
 
 ---
 
-**For HR/Reviewer:**
 
-To access and test this project easily:
+**Live Demo URLs:**
 
-1. **Download & Unzip:**
-  - Download the attached ZIP or use the provided download link.
-  - Unzip to your local machine.
+- **Frontend (User/Admin Dashboard):** [https://hr-tool-seven-lake.vercel.app/login](https://hr-tool-seven-lake.vercel.app/login)
+- **Backend (API):** [https://hr-tool-x9ya.onrender.com/](https://hr-tool-x9ya.onrender.com/)
 
-2. **Admin Login Credentials:**
-  - Email: `yashsharma4841@gmail.com`
-  - Password: `Admin@123`
-  - (These are seeded by default. If you want to change, edit `backend/.env` before running the seed command.)
+**Admin Login Credentials:**
+- Email: `yashsharma4841@gmail.com`
+- Password: `Admin@123`
 
-3. **How to Run:**
-  - Open two terminals:
-    - In the `backend` folder:
-     - Run: `npm install` then `npm run dev`
-    - In the `frontend` folder:
-     - Run: `npm install` then `npm run dev`
-  - Open [http://localhost:5173](http://localhost:5173) in your browser.
-  - (If using Docker: `docker-compose up --build` from the root folder, then open [http://localhost:3000](http://localhost:3000))
+You can log in as admin using the above credentials, or sign up as a new employee user.
 
-4. **Need Help?**
-  - Contact the developer if you have any issues running or accessing the app.
+For local setup instructions, see below.
 
 ---
 
 ## Project Overview
-This project is a full-stack HR MVP for managing employee accounts, leave requests, attendance records, and admin approvals. It includes bonus features like email notifications, attendance reports, unit tests, and Docker deployment support.
+This project is a full-stack HR MVP for managing employee accounts, leave requests, attendance records, and admin approvals. It includes bonus features like email notifications, attendance reports, and unit tests.
 
 ### Employee capabilities
 - Register and login securely.
@@ -72,7 +61,7 @@ This project is a full-stack HR MVP for managing employee accounts, leave reques
 - Testing: Jest + Supertest
   - Comprehensive API endpoint testing.
 - Deployment: Docker + Docker Compose
-  - Containerized deployment for easy setup.
+  - Deployed to Vercel (frontend) and Render (backend) for easy public access.
 
 ## Project Structure
 ```text
@@ -106,8 +95,8 @@ root
 │   │   └── setup.js
 │   ├── utils
 │   │   └── emailService.js         # NEW: Email notifications
-│   ├── Dockerfile                   # NEW: Docker
-│   ├── docker-compose.yml           # NEW: Docker Compose
+│   ├── Dockerfile                   # (legacy, not required)
+│   ├── docker-compose.yml           # (legacy, not required)
 │   └── jest.config.js              # NEW: Jest config
 ├── frontend
 │   ├── src
@@ -117,7 +106,7 @@ root
 │   │   │   └── AttendanceAnalytics.jsx  # NEW: Reports page
 │   │   ├── services
 │   │   └── context
-│   ├── Dockerfile                   # NEW: Docker
+│   ├── Dockerfile                   # (legacy, not required)
 │   └── nginx.conf                   # NEW: Nginx config
 └── README.md
 ```
@@ -166,30 +155,8 @@ root
 Frontend default URL: `http://localhost:5173`
 Backend default URL: `http://localhost:5000`
 
-### Option 2: Docker Setup (Recommended)
-
-#### 1) Using Docker Compose
-```bash
-# From root directory
 docker-compose up --build
-```
 
-This will start:
-- MongoDB on port 27017
-- Backend API on port 5000
-- Frontend on port 3000
-
-#### 2) Environment Variables for Docker
-Create a `.env` file in the root or set environment variables:
-```bash
-JWT_SECRET=your_super_secret_key
-EMAIL_SERVICE=gmail
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_password
-ADMIN_NAME=System Admin
-ADMIN_EMAIL=admin@hrtool.com
-ADMIN_PASSWORD=Admin@123
-```
 
 ## Running Tests
 
@@ -275,7 +242,7 @@ npm run seed:admin
 ```
 
 Default credentials for review/testing:
-- Email: `admin@hrtool.com`
+- Email: `yashsharma4841@gmail.com`
 - Password: `Admin@123`
 
 You can change these in `backend/.env` before seeding. For production, always update these values.
@@ -321,17 +288,10 @@ After deploy:
 - Set backend env variables in hosting platform.
 - Set frontend `VITE_API_URL` to deployed backend API URL.
 
-### Docker Deployment
-```bash
-# Build and run
 docker-compose up --build -d
-
-# Stop
 docker-compose down
-
-# Rebuild
 docker-compose up --build
-```
+
 
 ## AI Tools Declaration
 AI tools were used with transparency:
@@ -350,7 +310,7 @@ Final integration choices, business rules (role restrictions, leave balance upda
 | Pagination & Filters | ✅ | All admin endpoints support `page`, `limit`, and filter params |
 | Email Notifications | ✅ | `emailService.js` with nodemailer integration |
 | Unit Testing | ✅ | Jest tests for auth and leave controllers |
-| Docker Setup | ✅ | Dockerfile, docker-compose.yml for full stack deployment |
+| Docker Setup | ❌ | (Removed for public deployment; see Vercel/Render URLs above) |
 
 ## Known Limitations
 - Email requires manual Gmail App Password configuration
