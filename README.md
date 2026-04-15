@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Employee Leave & Attendance Management System (Mini HR Tool)
 
 ---
@@ -363,3 +364,6 @@ Final integration choices, business rules (role restrictions, leave balance upda
 - **NEW: Bonus features (reports, emails, tests, docker): 3 hours**
 - Validation and documentation: 2 hours
 - **Total: ~15 hours**
+=======
+# HR-Tool
+>>>>>>> e2e8af83ad23df0740593fbcc3e80bb4e8b22bf0
