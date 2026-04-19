@@ -72,7 +72,7 @@ exports.checkOut = async (req, res) => {
 
   // Status priority: Half Day > Late > Present
   if (attendance.checkOutTime < officeEnd) {
-    attendance.status = "Half Day";
+    attendance.status = "Half-day";
   } else if (attendance.checkInTime > new Date().setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0)) {
     attendance.status = "Late";
   } else {
