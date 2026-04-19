@@ -21,9 +21,14 @@ export default function Navbar() {
         {user ? (
           <>
             {user.role === "employee" && (
-              <Link to="/employee" className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700">
-                Dashboard
-              </Link>
+              <>
+                <Link to="/employee" className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700">
+                  Dashboard
+                </Link>
+                <Link to="/attendance-calendar" className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700">
+                  Attendance Calendar
+                </Link>
+              </>
             )}
             {user.role === "admin" && (
               <>

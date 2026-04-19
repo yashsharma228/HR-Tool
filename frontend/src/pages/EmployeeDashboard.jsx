@@ -38,22 +38,50 @@ export default function EmployeeDashboard() {
   };
 
   // Fetch leaves and attendance
-  useEffect(() => {
+  const fetchAttendanceData = () => {
     setLoading(true);
     Promise.all([getMyLeaves(), getMyAttendance()])
       .then(([leavesRes, attRes]) => {
         setLeaves(leavesRes.data);
         setAttendance(attRes.data);
         refreshProfile();
-        // Set today's attendance
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const todayRecord = attRes.data.find(
-          (rec) => rec.date && rec.date.slice(0, 10) === todayStr
-        );
+        // Set today's attendance using local date comparison
+        const today = new Date();
+        const todayRecord = attRes.data.find((rec) => {
+          if (!rec.date) return false;
+          const recDate = new Date(rec.date);
+          // Compare backend UTC date with local date
+          return (
+            recDate.getUTCFullYear() === today.getFullYear() &&
+            recDate.getUTCMonth() === today.getMonth() &&
+            recDate.getUTCDate() === today.getDate()
+          );
+        });
+        // If no record for today, clear attendanceToday
         setAttendanceToday(todayRecord || null);
       })
-      .catch(() => showToast("Failed to load data", "error"))
+      .catch(() => {
+        setAttendanceToday(null);
+        showToast("Failed to load data", "error");
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchAttendanceData();
+  }, []);
+
+  // Auto-refresh attendance section at midnight
+  useEffect(() => {
+    // Calculate ms until next midnight
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const msUntilMidnight = nextMidnight - now;
+    const timer = setTimeout(() => {
+      fetchAttendanceData();
+    }, msUntilMidnight);
+    return () => clearTimeout(timer);
   }, []);
 
 
@@ -92,7 +120,12 @@ export default function EmployeeDashboard() {
       setAttendanceToday(data);
       showToast("Checked in successfully");
     } catch (err) {
-      showToast(err.response?.data?.message || "Failed to check in", "error");
+      if (err.response?.data?.message === "Already checked in today") {
+        showToast("You have already checked in today.", "error");
+        fetchAttendanceData();
+      } else {
+        showToast(err.response?.data?.message || "Failed to check in", "error");
+      }
     } finally {
       setAttLoading(false);
     }
@@ -150,8 +183,7 @@ export default function EmployeeDashboard() {
         </p>
         <h3 className="mt-4 text-lg font-semibold">Office Hours: 10:00 AM – 6:00 PM</h3>
       </div>
-  {/* Attendance Calendar */}
-  <AttendanceCalendar attendanceData={attendance} />
+
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">

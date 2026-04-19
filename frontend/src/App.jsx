@@ -1,6 +1,7 @@
 import ExportData from "./pages/ExportData";
 import UserManagement from "./pages/UserManagement";
 import AttendanceAnalytics from "./pages/AttendanceAnalytics";
+import NavbarAttendanceCalendar from "./components/NavbarAttendanceCalendar";
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
@@ -69,6 +70,14 @@ function App() {
               element={
                 <RoleRoute role="employee">
                   <LeaveHistory />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/attendance-calendar"
+              element={
+                <RoleRoute role="employee">
+                  <NavbarAttendanceCalendar />
                 </RoleRoute>
               }
             />

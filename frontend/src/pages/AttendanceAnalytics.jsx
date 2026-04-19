@@ -22,19 +22,6 @@ export default function AttendanceAnalytics() {
     }).catch(() => {});
   }, []);
 
-  // Polling: auto-refresh reports every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (user.role === "admin") {
-        if (reportType === "monthly") {
-          fetchMonthlyReport();
-        } else if (reportType === "yearly") {
-          fetchYearlyReport();
-        }
-      }
-    }, 10000); // 10 seconds
-    return () => clearInterval(interval);
-  }, [user.role, reportType, filters.year, filters.month, filters.userId]);
 
   useEffect(() => {
     if (user.role === "admin") {
