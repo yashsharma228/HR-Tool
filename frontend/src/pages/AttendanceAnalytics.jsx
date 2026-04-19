@@ -168,7 +168,7 @@ export default function AttendanceAnalytics() {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto mt-8">
                     <table className="w-full border text-sm">
                       <thead className="bg-slate-50">
                         <tr>
@@ -177,6 +177,7 @@ export default function AttendanceAnalytics() {
                           <th className="p-3 text-center">Absent</th>
                           <th className="p-3 text-center">Total</th>
                           <th className="p-3 text-center">Attendance %</th>
+                          <th className="p-3 text-center">Daily Records</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -194,11 +195,41 @@ export default function AttendanceAnalytics() {
                                 {emp.statistics.presentPercentage}%
                               </span>
                             </td>
+                            <td className="p-3 text-center">
+                              <details>
+                                <summary className="cursor-pointer text-indigo-600 underline text-xs">View</summary>
+                                <div className="mt-2 max-h-48 overflow-y-auto bg-slate-50 rounded p-2 border border-slate-200">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr>
+                                        <th>Date</th>
+                                        <th>Status</th>
+                                        <th>Check-in</th>
+                                        <th>Check-out</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {emp.records.map((rec, idx) => (
+                                        <tr key={idx}>
+                                          <td>{new Date(rec.date).toLocaleDateString()}</td>
+                                          <td>{rec.status}</td>
+                                          <td>{rec.checkInTime ? new Date(rec.checkInTime).toLocaleTimeString() : '-'}</td>
+                                          <td>{rec.checkOutTime ? new Date(rec.checkOutTime).toLocaleTimeString() : '-'}</td>
+                                        </tr>
+                                      ))}
+                                      {emp.records.length === 0 && (
+                                        <tr><td colSpan={4} className="text-center text-slate-400">No records</td></tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </details>
+                            </td>
                           </tr>
                         ))}
                         {monthlyData.employees.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="p-6 text-center text-slate-500">No data for this period</td>
+                            <td colSpan={6} className="p-6 text-center text-slate-500">No data for this period</td>
                           </tr>
                         )}
                       </tbody>

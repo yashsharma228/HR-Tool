@@ -45,7 +45,8 @@ export const getAllLeaves = (params) => API.get("/leaves", { params });
 export const updateLeaveStatus = (id, status) => API.patch(`/leaves/${id}/status`, { status });
 
 // Attendance
-export const markAttendance = (data) => API.post("/attendance", data);
+export const checkIn = () => API.post("/attendance/check-in");
+export const checkOut = () => API.post("/attendance/check-out");
 export const getMyAttendance = () => API.get("/attendance/my");
 export const getAllAttendance = (params) => API.get("/attendance", { params });
 

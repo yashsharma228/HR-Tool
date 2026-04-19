@@ -1,65 +1,100 @@
 const Attendance = require('../models/Attendance');
 const { sendEmail, sendAdminAttendanceNotification } = require('../utils/emailService');
 
-// Employee: Mark attendance
-exports.markAttendance = async (req, res) => {
-  const { status, date } = req.body;
-  if (!['Present', 'Absent'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid status' });
-  }
+// Office hours config
+const OFFICE_START_HOUR = 10;
+const OFFICE_START_MIN = 0;
+const OFFICE_END_HOUR = 18;
+const OFFICE_END_MIN = 0;
 
-  const recordDate = date ? new Date(date) : new Date();
+// Employee: Check-in
+exports.checkIn = async (req, res) => {
+  const userId = req.user.userId;
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setHours(0,0,0,0);
 
-  // Prevent marking future attendance
-  if (recordDate > today) {
-    return res.status(400).json({ message: 'Cannot mark future attendance' });
+  // Prevent double check-in
+  let attendance = await Attendance.findOne({ userId, date: today });
+  if (attendance && attendance.checkInTime) {
+    return res.status(400).json({ message: 'Already checked in today' });
   }
 
-  // Only one attendance per day
-  const existing = await Attendance.findOne({ userId: req.user.userId, date: recordDate });
-  if (existing) return res.status(400).json({ message: 'Attendance already marked for selected date' });
+  if (!attendance) {
+    attendance = new Attendance({ userId, date: today });
+  }
+  attendance.checkInTime = new Date();
 
-  const attendance = await Attendance.create({
-    userId: req.user.userId,
-    date: recordDate,
-    status,
-  });
+  // Office start time
+  const officeStart = new Date();
+  officeStart.setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0);
 
-  // Send email notifications asynchronously to improve performance
+  // Status logic
+  if (attendance.checkInTime > officeStart) {
+    attendance.status = "Late";
+  } else {
+    attendance.status = "Present";
+  }
+
+  await attendance.save();
+
+  // Send admin notification on check-in
   try {
     const User = require('../models/User');
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(userId);
     if (user) {
-      // Notify Employee (Attendance Confirmation) (non-blocking)
-      sendEmail({
-        to: user.email,
-        subject: `Attendance Confirmation - ${recordDate.toDateString()}`,
-        text: `Dear ${user.name},\n\nYour attendance for ${recordDate.toDateString()} has been recorded as: ${status}.\n\nThank you,\nHR Tool Team`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1e293b;">
-            <h2 style="color: #0ea5e9;">Attendance Recorded</h2>
-            <p>Dear <strong>${user.name}</strong>,</p>
-            <p>Your attendance for <strong>${recordDate.toDateString()}</strong> has been successfully recorded.</p>
-            <div style="background-color: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #0ea5e9; text-align: center;">
-              <p style="margin: 0; color: #64748b; font-size: 14px;">Status</p>
-              <p style="margin: 5px 0; font-size: 20px; font-weight: bold; color: ${status === 'Present' ? '#10b981' : '#ef4444'};">${status}</p>
-            </div>
-            <p style="margin-top: 20px;">Best regards,<br/><strong>HR Team</strong></p>
-          </div>
-        `
-      }).catch(err => console.error('Failed to send attendance confirmation email:', err.message));
-
-      // Notify Admin (non-blocking)
-      sendAdminAttendanceNotification(user, attendance).catch(err => 
-        console.error('Failed to send admin attendance notification:', err.message)
-      );
+      const { sendAdminAttendanceNotification } = require('../utils/emailService');
+      sendAdminAttendanceNotification(user, attendance).catch(() => {});
     }
-  } catch (e) {
-    console.error('Error initiating attendance emails:', e.message);
+  } catch {}
+
+  res.json(attendance);
+};
+
+// Employee: Check-out
+exports.checkOut = async (req, res) => {
+  const userId = req.user.userId;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  let attendance = await Attendance.findOne({ userId, date: today });
+  if (!attendance || !attendance.checkInTime) {
+    return res.status(400).json({ message: 'Check-in required first' });
   }
-  res.status(201).json(attendance);
+  if (attendance.checkOutTime) {
+    return res.status(400).json({ message: 'Already checked out today' });
+  }
+
+  attendance.checkOutTime = new Date();
+
+  // Office end time
+  const officeEnd = new Date();
+  officeEnd.setHours(OFFICE_END_HOUR, OFFICE_END_MIN, 0, 0);
+
+  // Status priority: Half Day > Late > Present
+  if (attendance.checkOutTime < officeEnd) {
+    attendance.status = "Half Day";
+  } else if (attendance.checkInTime > new Date().setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0)) {
+    attendance.status = "Late";
+  } else {
+    attendance.status = "Present";
+  }
+
+  // Work hours
+  attendance.workHours = ((attendance.checkOutTime - attendance.checkInTime) / (1000 * 60 * 60)).toFixed(2);
+
+  await attendance.save();
+
+  // Send admin notification on check-out
+  try {
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+    if (user) {
+      const { sendAdminAttendanceNotification } = require('../utils/emailService');
+      sendAdminAttendanceNotification(user, attendance).catch(() => {});
+    }
+  } catch {}
+
+  res.json(attendance);
 };
 
 // Employee: View own attendance

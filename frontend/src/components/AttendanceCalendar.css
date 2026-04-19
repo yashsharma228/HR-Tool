@@ -1,0 +1,50 @@
+/* Minimal react-calendar style for AttendanceCalendar */
+.react-calendar {
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-family: inherit;
+  line-height: 1.125em;
+  box-shadow: 0 2px 8px 0 #0001;
+}
+.react-calendar__navigation button {
+  color: #2563eb;
+  min-width: 44px;
+  background: none;
+  font-size: 1.1em;
+  margin-top: 8px;
+}
+.react-calendar__tile {
+  padding: 0.5em 0.2em;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 1em;
+  cursor: pointer;
+  border-radius: 0.25em;
+  transition: background 0.2s;
+}
+.react-calendar__tile--active {
+  background: #2563eb22;
+  color: #2563eb;
+}
+.react-calendar__tile--now {
+  background: #f0f9ff;
+  color: #0ea5e9;
+}
+.react-calendar__tile:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+.react-calendar__month-view__days__day--weekend {
+  color: #ef4444;
+}
+.attendance-calendar-status {
+  font-weight: bold;
+  font-size: 0.7em;
+  display: block;
+  margin-top: 2px;
+}

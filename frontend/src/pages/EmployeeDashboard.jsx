@@ -4,12 +4,14 @@ import {
   applyLeave,
   updateLeave,
   deleteLeave,
-  markAttendance,
+  checkIn,
+  checkOut,
   getMyAttendance,
 } from "../services/api";
 import useAuth from "../hooks/useAuth";
 import { showToast } from "../components/Toast";
 import Loader from "../components/Loader";
+import AttendanceCalendar from "../components/AttendanceCalendar";
 
 export default function EmployeeDashboard() {
   const { user, refreshProfile } = useAuth();
@@ -22,9 +24,9 @@ export default function EmployeeDashboard() {
     reason: "",
   });
   const [editingLeaveId, setEditingLeaveId] = useState(null);
-  const [attendanceStatus, setAttendanceStatus] = useState("Present");
+  const [attendanceToday, setAttendanceToday] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [attLoading, setAttLoading] = useState(false);
+  // const [attLoading, setAttLoading] = useState(false); // Removed duplicate declaration
   const approvedLeaves = leaves.filter((leave) => leave.status === "Approved").length;
   const presentDays = attendance.filter((record) => record.status === "Present").length;
 
@@ -43,24 +45,17 @@ export default function EmployeeDashboard() {
         setLeaves(leavesRes.data);
         setAttendance(attRes.data);
         refreshProfile();
+        // Set today's attendance
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayRecord = attRes.data.find(
+          (rec) => rec.date && rec.date.slice(0, 10) === todayStr
+        );
+        setAttendanceToday(todayRecord || null);
       })
       .catch(() => showToast("Failed to load data", "error"))
       .finally(() => setLoading(false));
   }, []);
 
-  // Polling: auto-refresh data every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      Promise.all([getMyLeaves(), getMyAttendance()])
-        .then(([leavesRes, attRes]) => {
-          setLeaves(leavesRes.data);
-          setAttendance(attRes.data);
-          refreshProfile();
-        })
-        .catch(() => showToast("Failed to load data", "error"));
-    }, 10000); // 10 seconds
-    return () => clearInterval(interval);
-  }, []);
 
   // Leave form handlers
   const handleLeaveChange = (e) => setLeaveForm({ ...leaveForm, [e.target.name]: e.target.value });
@@ -88,14 +83,29 @@ export default function EmployeeDashboard() {
   };
 
   // Attendance
-  const handleMarkAttendance = async () => {
+  const [attLoading, setAttLoading] = useState(false);
+  const handleCheckIn = async () => {
     setAttLoading(true);
     try {
-      const { data } = await markAttendance({ status: attendanceStatus });
+      const { data } = await checkIn();
       setAttendance([data, ...attendance]);
-      showToast("Attendance marked");
+      setAttendanceToday(data);
+      showToast("Checked in successfully");
     } catch (err) {
-      showToast(err.response?.data?.message || "Failed to mark attendance", "error");
+      showToast(err.response?.data?.message || "Failed to check in", "error");
+    } finally {
+      setAttLoading(false);
+    }
+  };
+  const handleCheckOut = async () => {
+    setAttLoading(true);
+    try {
+      const { data } = await checkOut();
+      setAttendance([data, ...attendance.filter(a => a._id !== data._id)]);
+      setAttendanceToday(data);
+      showToast("Checked out successfully");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to check out", "error");
     } finally {
       setAttLoading(false);
     }
@@ -138,7 +148,10 @@ export default function EmployeeDashboard() {
         <p className="mt-2 text-sm text-cyan-100 sm:text-base">
           Track leave and attendance in real time from your personal HR dashboard.
         </p>
+        <h3 className="mt-4 text-lg font-semibold">Office Hours: 10:00 AM – 6:00 PM</h3>
       </div>
+  {/* Attendance Calendar */}
+  <AttendanceCalendar attendanceData={attendance} />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
@@ -223,35 +236,49 @@ export default function EmployeeDashboard() {
         </div>
 
         <div className="glass-card animated-rise rounded-2xl p-4">
-          <h3 className="mb-3 text-lg font-semibold text-slate-800">Mark Attendance</h3>
+          <h3 className="mb-3 text-lg font-semibold text-slate-800">Attendance</h3>
           <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-            <select
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              value={attendanceStatus}
-              onChange={(e) => setAttendanceStatus(e.target.value)}
-            >
-              <option value="Present">Present</option>
-              <option value="Absent">Absent</option>
-            </select>
-            <button
-              onClick={handleMarkAttendance}
-              className="rounded-lg bg-linear-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 disabled:opacity-50"
-              disabled={attLoading}
-            >
-            {attLoading ? "Marking..." : `Mark ${attendanceStatus}`}
-            </button>
+            {!attendanceToday?.checkInTime ? (
+              <button
+                onClick={handleCheckIn}
+                className="rounded-lg bg-linear-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 disabled:opacity-50"
+                disabled={attLoading}
+              >
+                {attLoading ? "Checking in..." : "Check In"}
+              </button>
+            ) : !attendanceToday?.checkOutTime ? (
+              <button
+                onClick={handleCheckOut}
+                className="rounded-lg bg-linear-to-r from-indigo-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 disabled:opacity-50"
+                disabled={attLoading}
+              >
+                {attLoading ? "Checking out..." : "Check Out"}
+              </button>
+            ) : (
+              <span className="text-green-700 font-semibold">Attendance completed</span>
+            )}
+          </div>
+          <div className="mb-2">
+            <h4 className="mb-2 text-sm font-semibold text-slate-700">Today&#39;s Attendance</h4>
+            {attendanceToday ? (
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm flex flex-col gap-1">
+                <div><strong>Status:</strong> <span className={getStatusChipClass(attendanceToday.status)}>{attendanceToday.status}</span></div>
+                <div><strong>Check-in:</strong> {attendanceToday.checkInTime ? new Date(attendanceToday.checkInTime).toLocaleTimeString() : '-'}</div>
+                <div><strong>Check-out:</strong> {attendanceToday.checkOutTime ? new Date(attendanceToday.checkOutTime).toLocaleTimeString() : '-'}</div>
+                <div><strong>Work Hours:</strong> {attendanceToday.workHours || '-'}</div>
+              </div>
+            ) : <span className="text-slate-500">No attendance yet today.</span>}
           </div>
           <div>
             <h4 className="mb-2 text-sm font-semibold text-slate-700">Recent Attendance</h4>
             <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/70 p-2">
-              {attendance.slice(0, 8).map((record) => (
-                <div key={record._id} className="mb-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm transition hover:bg-indigo-50/60">
-                  <span className="font-medium text-slate-700">{new Date(record.date).toLocaleDateString()}</span>
-                  <span className={getStatusChipClass(record.status)}>{record.status}</span>
+              {attendanceToday ? (
+                <div className="mb-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm transition hover:bg-indigo-50/60">
+                  <span className="font-medium text-slate-700">{new Date().toLocaleDateString()}</span>
+                  <span className={getStatusChipClass(attendanceToday.status)}>{attendanceToday.status}</span>
                 </div>
-              ))}
-              {attendance.length === 0 && (
-                <p className="p-3 text-center text-sm text-slate-500">No attendance records yet.</p>
+              ) : (
+                <p className="p-3 text-center text-sm text-slate-500">No attendance yet today.</p>
               )}
             </div>
           </div>

@@ -79,15 +79,6 @@ export default function AdminDashboard() {
     fetchAttendance();
   }, []);
 
-  // Polling: auto-refresh data every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchLeaves();
-      fetchUsers();
-      fetchAttendance();
-    }, 10000); // 10 seconds
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     fetchUsers(1, userFilter);

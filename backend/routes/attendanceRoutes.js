@@ -5,7 +5,8 @@ const role = require('../middleware/role');
 const attendanceCtrl = require('../controllers/attendanceController');
 
 // Employee
-router.post('/', auth, role('employee'), attendanceCtrl.markAttendance);
+router.post('/check-in', auth, role('employee'), attendanceCtrl.checkIn);
+router.post('/check-out', auth, role('employee'), attendanceCtrl.checkOut);
 router.get('/my', auth, role('employee'), attendanceCtrl.getMyAttendance);
 
 // Admin

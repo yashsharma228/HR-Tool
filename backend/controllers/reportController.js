@@ -49,7 +49,9 @@ exports.getMonthlyReport = async (req, res) => {
         },
         records: employeeRecords.map(r => ({
           date: r.date,
-          status: r.status
+          status: r.status,
+          checkInTime: r.checkInTime,
+          checkOutTime: r.checkOutTime
         }))
       };
     });
