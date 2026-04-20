@@ -15,21 +15,7 @@ export default function NavbarAttendanceCalendar() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    fetchAttendanceData();
-  }, []);
-
-  // Auto-refresh at midnight
-  useEffect(() => {
-    const now = new Date();
-    const nextMidnight = new Date(now);
-    nextMidnight.setHours(24, 0, 0, 0);
-    const msUntilMidnight = nextMidnight - now;
-    const timer = setTimeout(() => {
-      fetchAttendanceData();
-    }, msUntilMidnight);
-    return () => clearTimeout(timer);
-  }, []);
+  // Removed auto-fetch and auto-refresh logic to prevent automatic page reload or data refresh
 
   return (
     <div className="p-4">

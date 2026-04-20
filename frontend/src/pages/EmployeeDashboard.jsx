@@ -11,7 +11,7 @@ import {
 import useAuth from "../hooks/useAuth";
 import { showToast } from "../components/Toast";
 import Loader from "../components/Loader";
-import AttendanceCalendar from "../components/AttendanceCalendar";
+import AttendanceSection from "../components/AttendanceSection";
 
 export default function EmployeeDashboard() {
   const { user, refreshProfile } = useAuth();
@@ -47,14 +47,17 @@ export default function EmployeeDashboard() {
         refreshProfile();
         // Set today's attendance using local date comparison
         const today = new Date();
+        const todayUTCYear = today.getUTCFullYear();
+        const todayUTCMonth = today.getUTCMonth();
+        const todayUTCDate = today.getUTCDate();
+
         const todayRecord = attRes.data.find((rec) => {
           if (!rec.date) return false;
           const recDate = new Date(rec.date);
-          // Compare backend UTC date with local date
           return (
-            recDate.getUTCFullYear() === today.getFullYear() &&
-            recDate.getUTCMonth() === today.getMonth() &&
-            recDate.getUTCDate() === today.getDate()
+            recDate.getUTCFullYear() === todayUTCYear &&
+            recDate.getUTCMonth() === todayUTCMonth &&
+            recDate.getUTCDate() === todayUTCDate
           );
         });
         // If no record for today, clear attendanceToday
@@ -67,22 +70,7 @@ export default function EmployeeDashboard() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    fetchAttendanceData();
-  }, []);
-
-  // Auto-refresh attendance section at midnight
-  useEffect(() => {
-    // Calculate ms until next midnight
-    const now = new Date();
-    const nextMidnight = new Date(now);
-    nextMidnight.setHours(24, 0, 0, 0);
-    const msUntilMidnight = nextMidnight - now;
-    const timer = setTimeout(() => {
-      fetchAttendanceData();
-    }, msUntilMidnight);
-    return () => clearTimeout(timer);
-  }, []);
+  // Removed auto-fetch and auto-refresh logic to prevent automatic page reload or data refresh
 
 
   // Leave form handlers
@@ -267,54 +255,7 @@ export default function EmployeeDashboard() {
           </form>
         </div>
 
-        <div className="glass-card animated-rise rounded-2xl p-4">
-          <h3 className="mb-3 text-lg font-semibold text-slate-800">Attendance</h3>
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-            {!attendanceToday?.checkInTime ? (
-              <button
-                onClick={handleCheckIn}
-                className="rounded-lg bg-linear-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 disabled:opacity-50"
-                disabled={attLoading}
-              >
-                {attLoading ? "Checking in..." : "Check In"}
-              </button>
-            ) : !attendanceToday?.checkOutTime ? (
-              <button
-                onClick={handleCheckOut}
-                className="rounded-lg bg-linear-to-r from-indigo-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 disabled:opacity-50"
-                disabled={attLoading}
-              >
-                {attLoading ? "Checking out..." : "Check Out"}
-              </button>
-            ) : (
-              <span className="text-green-700 font-semibold">Attendance completed</span>
-            )}
-          </div>
-          <div className="mb-2">
-            <h4 className="mb-2 text-sm font-semibold text-slate-700">Today&#39;s Attendance</h4>
-            {attendanceToday ? (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm flex flex-col gap-1">
-                <div><strong>Status:</strong> <span className={getStatusChipClass(attendanceToday.status)}>{attendanceToday.status}</span></div>
-                <div><strong>Check-in:</strong> {attendanceToday.checkInTime ? new Date(attendanceToday.checkInTime).toLocaleTimeString() : '-'}</div>
-                <div><strong>Check-out:</strong> {attendanceToday.checkOutTime ? new Date(attendanceToday.checkOutTime).toLocaleTimeString() : '-'}</div>
-                <div><strong>Work Hours:</strong> {attendanceToday.workHours || '-'}</div>
-              </div>
-            ) : <span className="text-slate-500">No attendance yet today.</span>}
-          </div>
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-slate-700">Recent Attendance</h4>
-            <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/70 p-2">
-              {attendanceToday ? (
-                <div className="mb-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm transition hover:bg-indigo-50/60">
-                  <span className="font-medium text-slate-700">{new Date().toLocaleDateString()}</span>
-                  <span className={getStatusChipClass(attendanceToday.status)}>{attendanceToday.status}</span>
-                </div>
-              ) : (
-                <p className="p-3 text-center text-sm text-slate-500">No attendance yet today.</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <AttendanceSection />
       </div>
 
       <div className="glass-card animated-rise mt-6 rounded-2xl p-4">

@@ -4,6 +4,7 @@ import {
   updateLeaveStatus,
   getAllUsers,
   getAllAttendance,
+  getAdminDashboardStats,
 } from "../services/api";
 import { showToast } from "../components/Toast";
 import Loader from "../components/Loader";
@@ -21,8 +22,18 @@ export default function AdminDashboard() {
   const [userPagination, setUserPagination] = useState({ page: 1, totalPages: 1, total: 0 });
   const [activeTab, setActiveTab] = useState("leaves");
 
-  const pendingLeaves = leaves.filter((leave) => leave.status === "Pending").length;
-  const presentCount = attendance.filter((record) => record.status === "Present").length;
+  // Dashboard stats
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Fetch dashboard stats
+  useEffect(() => {
+    setStatsLoading(true);
+    getAdminDashboardStats()
+      .then(({ data }) => setDashboardStats(data))
+      .catch(() => setDashboardStats(null))
+      .finally(() => setStatsLoading(false));
+  }, []);
 
   const getStatusChipClass = (status) => {
     if (status === "Pending") return "status-chip status-pending";
@@ -79,7 +90,6 @@ export default function AdminDashboard() {
     fetchAttendance();
   }, []);
 
-
   useEffect(() => {
     fetchUsers(1, userFilter);
   }, [userFilter]);
@@ -91,6 +101,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchLeaves(1, leaveFilter);
   }, [leaveFilter]);
+
+  // Removed auto-refresh logic to prevent automatic page reload or data refresh
 
   const handleLeaveAction = async (id, status) => {
     setLoading(true);
@@ -139,22 +151,44 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Employees</p>
-          <p className="mt-2 text-3xl font-bold text-slate-800">{userPagination.total}</p>
-        </div>
-        <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending Leaves</p>
-          <p className="mt-2 text-3xl font-bold text-amber-600">{pendingLeaves}</p>
-        </div>
-        <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attendance Records</p>
-          <p className="mt-2 text-3xl font-bold text-slate-800">{attPagination.total}</p>
-        </div>
-        <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Present Marked</p>
-          <p className="mt-2 text-3xl font-bold text-emerald-600">{presentCount}</p>
-        </div>
+        {statsLoading || !dashboardStats ? (
+          <div className="col-span-4 flex justify-center items-center h-24"><Loader /></div>
+        ) : (
+          <>
+            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Employees</p>
+              <p className="mt-2 text-3xl font-bold text-slate-800">{dashboardStats.totalEmployees}</p>
+            </div>
+            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Present Today</p>
+              <p className="mt-2 text-3xl font-bold text-emerald-600">{dashboardStats.presentToday}</p>
+            </div>
+            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Absent Today</p>
+              <p className="mt-2 text-3xl font-bold text-rose-600">{dashboardStats.absentToday}</p>
+            </div>
+            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">On Leave</p>
+              <p className="mt-2 text-3xl font-bold text-yellow-500">{dashboardStats.onLeave}</p>
+            </div>
+            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attendance Records</p>
+              <p className="mt-2 text-3xl font-bold text-slate-800">{dashboardStats.attendanceRecords}</p>
+            </div>
+            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Present Marked</p>
+              <p className="mt-2 text-3xl font-bold text-blue-600">{dashboardStats.presentMarked}</p>
+            </div>
+            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attendance %</p>
+              <p className="mt-2 text-3xl font-bold text-indigo-600">{dashboardStats.attendancePercent}%</p>
+            </div>
+            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Last Updated</p>
+              <p className="mt-2 text-lg font-medium text-slate-700">{new Date(dashboardStats.lastUpdated).toLocaleString()}</p>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mb-4 flex gap-2 overflow-x-auto">

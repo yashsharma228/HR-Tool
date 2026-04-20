@@ -21,20 +21,7 @@ function downloadCSV(filename, csv) {
 export default function ExportData() {
   const [loading, setLoading] = useState(false);
 
-  // Polling: auto-refresh attendance and leaves data every 10 seconds (if needed for UI)
-  // If you want to keep the latest data for export, you can fetch and store it here.
-  // Example:
-  // const [attendance, setAttendance] = useState([]);
-  // const [leaves, setLeaves] = useState([]);
-  // useEffect(() => {
-  //   const fetchAll = () => {
-  //     getAllAttendance().then(res => setAttendance(res.data)).catch(() => {});
-  //     getAllLeaves().then(res => setLeaves(res.data)).catch(() => {});
-  //   };
-  //   fetchAll();
-  //   const interval = setInterval(fetchAll, 10000);
-  //   return () => clearInterval(interval);
-  // }, []);
+  // Removed auto-refresh logic to prevent automatic page reload or data refresh
 
   const handleExportAttendance = async () => {
     setLoading(true);

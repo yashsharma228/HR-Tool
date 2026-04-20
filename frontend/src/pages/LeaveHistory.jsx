@@ -29,8 +29,7 @@ export default function LeaveHistory() {
         .finally(() => setLoading(false));
     };
     fetchLeaves();
-    const interval = setInterval(fetchLeaves, 10000); // 10 seconds
-    return () => clearInterval(interval);
+    // Removed auto-refresh logic to prevent automatic page reload or data refresh
     // eslint-disable-next-line
   }, []);
 

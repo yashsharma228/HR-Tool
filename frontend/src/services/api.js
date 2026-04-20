@@ -1,3 +1,5 @@
+// Admin Dashboard Stats
+export const getAdminDashboardStats = () => API.get('/admin/dashboard-stats');
 import axios from "axios";
 
 const API = axios.create({

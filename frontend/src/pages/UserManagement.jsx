@@ -13,13 +13,7 @@ export default function UserManagement() {
     fetchUsers();
   }, []);
 
-  // Polling: auto-refresh users data every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchUsers();
-    }, 10000); // 10 seconds
-    return () => clearInterval(interval);
-  }, []);
+  // Removed auto-refresh logic to prevent automatic page reload or data refresh
 
   const fetchUsers = () => {
     setLoading(true);
