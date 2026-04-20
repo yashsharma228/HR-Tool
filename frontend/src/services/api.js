@@ -1,3 +1,6 @@
+// Admin manual attendance
+export const adminCheckIn = (userId) => API.post(`/attendance/admin/check-in/${userId}`);
+export const adminCheckOut = (userId) => API.post(`/attendance/admin/check-out/${userId}`);
 // Admin Dashboard Stats
 export const getAdminDashboardStats = () => API.get('/admin/dashboard-stats');
 import axios from "axios";

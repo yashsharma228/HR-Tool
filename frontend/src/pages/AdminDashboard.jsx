@@ -1,15 +1,52 @@
 import { useEffect, useState } from "react";
+import DigitalClock from "../components/DigitalClock";
+import "../components/digitalClock.css";
 import {
   getAllLeaves,
   updateLeaveStatus,
   getAllUsers,
   getAllAttendance,
   getAdminDashboardStats,
+  adminCheckIn,
+  adminCheckOut,
 } from "../services/api";
 import { showToast } from "../components/Toast";
 import Loader from "../components/Loader";
 
 export default function AdminDashboard() {
+  // Date/time state
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  const [attActionLoading, setAttActionLoading] = useState("");
+
+  // Admin check-in/out handlers
+  const handleAdminCheckIn = async (userId) => {
+    setAttActionLoading(userId + "-in");
+    try {
+      await adminCheckIn(userId);
+      showToast("Checked in successfully");
+      fetchAttendance(attPagination.page, filter);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to check in", "error");
+    } finally {
+      setAttActionLoading("");
+    }
+  };
+  const handleAdminCheckOut = async (userId) => {
+    setAttActionLoading(userId + "-out");
+    try {
+      await adminCheckOut(userId);
+      showToast("Checked out successfully");
+      fetchAttendance(attPagination.page, filter);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to check out", "error");
+    } finally {
+      setAttActionLoading("");
+    }
+  };
   const [leaves, setLeaves] = useState([]);
   const [users, setUsers] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -25,6 +62,15 @@ export default function AdminDashboard() {
   // Dashboard stats
   const [dashboardStats, setDashboardStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const formatLastUpdated = (value) =>
+    new Date(value).toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
 
   // Fetch dashboard stats
   useEffect(() => {
@@ -142,8 +188,13 @@ export default function AdminDashboard() {
   );
 
   return (
-    <div className="mx-auto mt-6 w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-      <div className="animated-rise mb-6 rounded-2xl bg-linear-to-r from-indigo-600 via-violet-600 to-fuchsia-600 p-6 text-white shadow-xl">
+    <div className="dashboard-shell mx-auto mt-6 w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+      <div className="hero-card animated-rise mb-6 rounded-2xl bg-linear-to-r from-indigo-600 via-violet-600 to-fuchsia-600 p-6 text-white shadow-xl relative overflow-hidden">
+        <span className="hero-glow animated-float -right-8 -top-8 h-28 w-28 bg-cyan-200" />
+        <span className="hero-glow -left-8 bottom-0 h-24 w-24 bg-fuchsia-200" />
+        <div className="absolute right-6 top-4 z-10">
+          <DigitalClock now={now} />
+        </div>
         <h2 className="text-2xl font-bold sm:text-3xl">Admin Control Center</h2>
         <p className="mt-2 text-sm text-indigo-100 sm:text-base">
           Manage leave approvals, employee records, and attendance trends in one place.
@@ -155,65 +206,65 @@ export default function AdminDashboard() {
           <div className="col-span-4 flex justify-center items-center h-24"><Loader /></div>
         ) : (
           <>
-            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+            <div className="metric-tile animated-fade animated-float rounded-2xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Employees</p>
               <p className="mt-2 text-3xl font-bold text-slate-800">{dashboardStats.totalEmployees}</p>
             </div>
-            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+            <div className="metric-tile animated-fade rounded-2xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Present Today</p>
               <p className="mt-2 text-3xl font-bold text-emerald-600">{dashboardStats.presentToday}</p>
             </div>
-            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+            <div className="metric-tile animated-fade rounded-2xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Absent Today</p>
               <p className="mt-2 text-3xl font-bold text-rose-600">{dashboardStats.absentToday}</p>
             </div>
-            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+            <div className="metric-tile animated-fade rounded-2xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">On Leave</p>
               <p className="mt-2 text-3xl font-bold text-yellow-500">{dashboardStats.onLeave}</p>
             </div>
-            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attendance Records</p>
-              <p className="mt-2 text-3xl font-bold text-slate-800">{dashboardStats.attendanceRecords}</p>
+            <div className="metric-tile animated-fade rounded-2xl p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attendance Records (Today)</p>
+              <p className="mt-2 text-3xl font-bold text-slate-800">{dashboardStats.attendanceRecordsToday}</p>
             </div>
-            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+            <div className="metric-tile animated-fade rounded-2xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Present Marked</p>
               <p className="mt-2 text-3xl font-bold text-blue-600">{dashboardStats.presentMarked}</p>
             </div>
-            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+            <div className="metric-tile animated-fade rounded-2xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attendance %</p>
               <p className="mt-2 text-3xl font-bold text-indigo-600">{dashboardStats.attendancePercent}%</p>
             </div>
-            <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+            <div className="metric-tile animated-fade rounded-2xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Last Updated</p>
-              <p className="mt-2 text-lg font-medium text-slate-700">{new Date(dashboardStats.lastUpdated).toLocaleString()}</p>
+              <p className="mt-2 text-lg font-medium text-slate-700">{formatLastUpdated(dashboardStats.lastUpdated)}</p>
             </div>
           </>
         )}
       </div>
 
-      <div className="mb-4 flex gap-2 overflow-x-auto">
+      <div className="mb-4 flex gap-2 overflow-x-auto py-1">
         <button
           onClick={() => setActiveTab("leaves")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "leaves" ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-700"}`}
+          className={`tab-pill ${activeTab === "leaves" ? "active" : "inactive"}`}
         >
           Leave Requests
         </button>
         <button
           onClick={() => setActiveTab("users")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "users" ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-700"}`}
+          className={`tab-pill ${activeTab === "users" ? "active" : "inactive"}`}
         >
           Employees
         </button>
         <button
           onClick={() => setActiveTab("attendance")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "attendance" ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-700"}`}
+          className={`tab-pill ${activeTab === "attendance" ? "active" : "inactive"}`}
         >
           Attendance
         </button>
       </div>
 
       {activeTab === "leaves" && (
-        <div className="glass-card animated-rise rounded-2xl p-4">
+        <div className="premium-panel animated-rise rounded-2xl p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-semibold text-slate-800">Leave Requests</h3>
             <div className="ml-auto flex flex-wrap gap-2">
@@ -245,7 +296,7 @@ export default function AdminDashboard() {
           </div>
           {loading ? <Loader /> : (
             <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-              <table className="min-w-190 w-full text-left text-sm">
+              <table className="interactive-table data-table min-w-190 w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-700">
                   <tr>
                     <th className="px-3 py-3">Employee</th>
@@ -306,7 +357,7 @@ export default function AdminDashboard() {
       )}
 
       {activeTab === "users" && (
-        <div className="glass-card animated-rise rounded-2xl p-4">
+        <div className="premium-panel animated-rise rounded-2xl p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-semibold text-slate-800">Employee Directory</h3>
             <div className="ml-auto flex flex-wrap gap-2">
@@ -330,7 +381,7 @@ export default function AdminDashboard() {
           </div>
           {loading ? <Loader /> : (
             <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-              <table className="min-w-130 w-full text-left text-sm">
+              <table className="interactive-table data-table min-w-130 w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-700">
                   <tr>
                     <th className="px-3 py-3">Name</th>
@@ -366,7 +417,7 @@ export default function AdminDashboard() {
       )}
 
       {activeTab === "attendance" && (
-        <div className="glass-card animated-rise rounded-2xl p-4">
+        <div className="premium-panel animated-rise rounded-2xl p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-semibold text-slate-800">Attendance Overview</h3>
             <div className="ml-auto flex flex-wrap gap-2">
@@ -398,7 +449,7 @@ export default function AdminDashboard() {
           </div>
           {loading ? <Loader /> : (
             <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-              <table className="min-w-130 w-full text-left text-sm">
+              <table className="interactive-table data-table min-w-130 w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-700">
                   <tr>
                     <th className="px-3 py-3">Date</th>
@@ -407,15 +458,54 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {attendance.map((record) => (
-                    <tr key={record._id} className="border-t border-slate-100 transition hover:bg-indigo-50/40">
-                      <td className="px-3 py-3 text-slate-600">{new Date(record.date).toLocaleDateString()}</td>
-                      <td className="px-3 py-3 font-medium text-slate-700">{record.userId?.name}</td>
-                      <td className="px-3 py-3">
-                        <span className={getStatusChipClass(record.status)}>{record.status}</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {attendance.map((record) => {
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    const recDate = new Date(record.date);
+                    recDate.setHours(0,0,0,0);
+                    const isToday = recDate.getTime() === today.getTime();
+                    return (
+                      <tr key={record._id} className="border-t border-slate-100 transition hover:bg-indigo-50/40">
+                        <td className="px-3 py-3 text-slate-600">{new Date(record.date).toLocaleDateString()}</td>
+                        <td className="px-3 py-3 font-medium text-slate-700">{record.userId?.name}</td>
+                        <td className="px-3 py-3">
+                          <span className={getStatusChipClass(record.status)}>{record.status}</span>
+                          {isToday && (
+                            <div className="flex flex-col gap-1 mt-1">
+                              {/* Show check-in time if present */}
+                              {record.checkInTime && (
+                                <span className="text-xs text-green-700">Check-in: {new Date(record.checkInTime).toLocaleTimeString()}</span>
+                              )}
+                              {/* Show check-out time if present */}
+                              {record.checkOutTime && (
+                                <span className="text-xs text-blue-700">Check-out: {new Date(record.checkOutTime).toLocaleTimeString()}</span>
+                              )}
+                              {/* Show Check In button only if not checked in */}
+                              {!record.checkInTime && (
+                                <button
+                                  className="rounded bg-emerald-500 text-white px-2 py-1 text-xs font-semibold disabled:opacity-50"
+                                  disabled={attActionLoading === record.userId?._id + "-in"}
+                                  onClick={() => handleAdminCheckIn(record.userId?._id)}
+                                >
+                                  {attActionLoading === record.userId?._id + "-in" ? "Checking in..." : "Check In"}
+                                </button>
+                              )}
+                              {/* Show Check Out button only if checked in but not checked out */}
+                              {record.checkInTime && !record.checkOutTime && (
+                                <button
+                                  className="rounded bg-blue-500 text-white px-2 py-1 text-xs font-semibold disabled:opacity-50"
+                                  disabled={attActionLoading === record.userId?._id + "-out"}
+                                  onClick={() => handleAdminCheckOut(record.userId?._id)}
+                                >
+                                  {attActionLoading === record.userId?._id + "-out" ? "Checking out..." : "Check Out"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {attendance.length === 0 && (
                     <tr>
                       <td colSpan={3} className="px-3 py-6 text-center text-slate-500">

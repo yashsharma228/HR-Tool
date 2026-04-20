@@ -14,7 +14,7 @@ exports.getDashboardStats = async (req, res) => {
     // 1. Total Employees (all employees)
     const totalEmployees = await User.countDocuments({ role: 'employee' });
 
-    // 2. Present Today (status = 'Present')
+    // 2. Present Today (strictly status === Present for today)
     const presentToday = await Attendance.countDocuments({
       date: { $gte: today, $lt: tomorrow },
       status: 'Present',
@@ -27,29 +27,28 @@ exports.getDashboardStats = async (req, res) => {
       endDate: { $gte: today },
     });
 
-    // 5. Attendance Records (all attendance entries for today)
-    const attendanceRecords = await Attendance.countDocuments({
+    // 5. Attendance Records Today (all attendance entries for today)
+    const attendanceRecordsToday = await Attendance.countDocuments({
       date: { $gte: today, $lt: tomorrow },
     });
 
-    // 6. Present Marked (anyone who checked in today)
-    const presentMarked = await Attendance.countDocuments({
-      date: { $gte: today, $lt: tomorrow },
-      checkInTime: { $ne: null },
-    });
+    // Keep this value aligned with Present Today to avoid dashboard mismatches.
+    const presentMarked = presentToday;
 
     // 3. Absent Today (Total Employees - Present Today - On Leave)
-    const absentToday = totalEmployees - presentToday - onLeave;
+    const absentToday = Math.max(totalEmployees - presentToday - onLeave, 0);
 
     // Attendance %
-    const attendancePercent = totalEmployees > 0 ? ((presentToday / totalEmployees) * 100).toFixed(1) : 0;
+    const attendancePercent = totalEmployees > 0
+      ? Math.round((presentToday / totalEmployees) * 100)
+      : 0;
 
     res.json({
       totalEmployees,
       presentToday,
       absentToday,
       onLeave,
-      attendanceRecords,
+      attendanceRecordsToday,
       presentMarked,
       attendancePercent,
       date: today,

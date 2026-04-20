@@ -1,3 +1,57 @@
+// Admin: Check-in for any employee
+exports.adminCheckIn = async (req, res) => {
+  const { userId } = req.params;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  let attendance = await Attendance.findOne({ userId, date: today });
+  if (attendance && attendance.checkInTime) {
+    return res.status(400).json({ message: 'Already checked in today' });
+  }
+  if (!attendance) {
+    attendance = new Attendance({ userId, date: today });
+  }
+  attendance.checkInTime = new Date();
+  const officeStart = new Date();
+  officeStart.setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0);
+  if (attendance.checkInTime > officeStart) {
+    attendance.status = "Late";
+  } else {
+    attendance.status = "Present";
+  }
+  attendance.isManualEntry = true;
+  await attendance.save();
+  res.json(attendance);
+};
+
+// Admin: Check-out for any employee
+exports.adminCheckOut = async (req, res) => {
+  const { userId } = req.params;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  let attendance = await Attendance.findOne({ userId, date: today });
+  if (!attendance || !attendance.checkInTime) {
+    return res.status(400).json({ message: 'Check-in required first' });
+  }
+  if (attendance.checkOutTime) {
+    return res.status(400).json({ message: 'Already checked out today' });
+  }
+  attendance.checkOutTime = new Date();
+  const officeEnd = new Date();
+  officeEnd.setHours(OFFICE_END_HOUR, OFFICE_END_MIN, 0, 0);
+  if (attendance.checkOutTime < officeEnd) {
+    attendance.status = "Half-day";
+  } else if (attendance.checkInTime > new Date().setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0)) {
+    attendance.status = "Late";
+  } else {
+    attendance.status = "Present";
+  }
+  attendance.workHours = ((attendance.checkOutTime - attendance.checkInTime) / (1000 * 60 * 60)).toFixed(2);
+  attendance.isManualEntry = true;
+  await attendance.save();
+  res.json(attendance);
+};
 const Attendance = require('../models/Attendance');
 const { sendEmail, sendAdminAttendanceNotification } = require('../utils/emailService');
 

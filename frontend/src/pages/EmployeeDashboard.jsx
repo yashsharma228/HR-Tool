@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import DigitalClock from "../components/DigitalClock";
+import "../components/digitalClock.css";
 import {
   getMyLeaves,
   applyLeave,
@@ -14,6 +16,12 @@ import Loader from "../components/Loader";
 import AttendanceSection from "../components/AttendanceSection";
 
 export default function EmployeeDashboard() {
+  // Date/time state
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
   const { user, refreshProfile } = useAuth();
   const [leaves, setLeaves] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -71,6 +79,9 @@ export default function EmployeeDashboard() {
   };
 
   // Removed auto-fetch and auto-refresh logic to prevent automatic page reload or data refresh
+  useEffect(() => {
+    fetchAttendanceData();
+  }, []);
 
 
   // Leave form handlers
@@ -163,8 +174,13 @@ export default function EmployeeDashboard() {
   };
 
   return (
-    <div className="mx-auto mt-6 w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-      <div className="animated-rise mb-6 rounded-2xl bg-linear-to-r from-cyan-600 via-indigo-600 to-violet-600 p-6 text-white shadow-xl">
+    <div className="dashboard-shell mx-auto mt-6 w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+      <div className="hero-card animated-rise mb-6 rounded-2xl bg-linear-to-r from-cyan-600 via-indigo-600 to-violet-600 p-6 text-white shadow-xl relative overflow-hidden">
+        <span className="hero-glow animated-float -right-8 -top-8 h-28 w-28 bg-cyan-100" />
+        <span className="hero-glow left-16 -bottom-7 h-24 w-24 bg-indigo-200" />
+        <div className="absolute right-6 top-4 z-10">
+          <DigitalClock now={now} />
+        </div>
         <h2 className="text-2xl font-bold sm:text-3xl">Welcome back, {user.name}</h2>
         <p className="mt-2 text-sm text-cyan-100 sm:text-base">
           Track leave and attendance in real time from your personal HR dashboard.
@@ -174,26 +190,26 @@ export default function EmployeeDashboard() {
 
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+        <div className="metric-tile animated-fade animated-float rounded-2xl p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Leave Balance</p>
           <p className="mt-2 text-3xl font-bold text-indigo-700">{user.leaveBalance}</p>
         </div>
-        <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+        <div className="metric-tile animated-fade rounded-2xl p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Leave Requests</p>
           <p className="mt-2 text-3xl font-bold text-slate-800">{leaves.length}</p>
         </div>
-        <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+        <div className="metric-tile animated-fade rounded-2xl p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Approved Leaves</p>
           <p className="mt-2 text-3xl font-bold text-emerald-600">{approvedLeaves}</p>
         </div>
-        <div className="glass-card animated-fade rounded-2xl p-4 transition hover:-translate-y-1 hover:shadow-xl">
+        <div className="metric-tile animated-fade rounded-2xl p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Present Days</p>
           <p className="mt-2 text-3xl font-bold text-cyan-700">{presentDays}</p>
         </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <div className="glass-card animated-rise rounded-2xl p-4">
+        <div className="premium-panel animated-rise rounded-2xl p-4">
           <h3 className="mb-3 text-lg font-semibold text-slate-800">
             {editingLeaveId ? "Edit Leave Request" : "Apply for Leave"}
           </h3>
@@ -258,11 +274,11 @@ export default function EmployeeDashboard() {
         <AttendanceSection />
       </div>
 
-      <div className="glass-card animated-rise mt-6 rounded-2xl p-4">
+      <div className="premium-panel animated-rise mt-6 rounded-2xl p-4">
         <h3 className="mb-3 text-lg font-semibold text-slate-800">Leave History</h3>
         {loading ? <Loader /> : (
           <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-            <table className="min-w-175 w-full text-left text-sm">
+            <table className="interactive-table data-table min-w-175 w-full text-left text-sm">
               <thead className="bg-slate-50 text-slate-700">
                 <tr>
                   <th className="px-3 py-3">Type</th>

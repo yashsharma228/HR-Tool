@@ -1,0 +1,22 @@
+.digital-clock {
+  animation: fade-in 0.8s;
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-blink {
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+.animate-clock-glow {
+  box-shadow: 0 0 16px 2px #6366f1, 0 2px 8px 0 #0001;
+  animation: clock-glow 2s ease-in-out infinite alternate;
+}
+@keyframes clock-glow {
+  from { box-shadow: 0 0 16px 2px #6366f1, 0 2px 8px 0 #0001; }
+  to { box-shadow: 0 0 32px 8px #818cf8, 0 2px 16px 0 #0002; }
+}

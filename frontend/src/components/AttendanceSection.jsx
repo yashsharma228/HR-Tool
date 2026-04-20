@@ -8,15 +8,17 @@ export default function AttendanceSection() {
   const [loading, setLoading] = useState(false);
   const [attLoading, setAttLoading] = useState(false);
 
-  // Fetch today's attendance (UTC)
+  // Fetch today's attendance (UTC, robust date comparison)
   const fetchAttendanceToday = async () => {
     setLoading(true);
     try {
       const { data } = await getMyAttendance();
-      const today = new Date();
-      const todayUTCYear = today.getUTCFullYear();
-      const todayUTCMonth = today.getUTCMonth();
-      const todayUTCDate = today.getUTCDate();
+      const now = new Date();
+      // Get UTC Y/M/D for today
+      const todayUTCYear = now.getUTCFullYear();
+      const todayUTCMonth = now.getUTCMonth();
+      const todayUTCDate = now.getUTCDate();
+      // Find attendance record with same UTC Y/M/D
       const todayRecord = data.find((rec) => {
         if (!rec.date) return false;
         const recDate = new Date(rec.date);
@@ -35,6 +37,9 @@ export default function AttendanceSection() {
   };
 
   // Removed auto-fetch and auto-refresh logic to prevent automatic page reload or data refresh
+  useEffect(() => {
+    fetchAttendanceToday();
+  }, []);
 
   const handleCheckIn = async () => {
     setAttLoading(true);
@@ -65,30 +70,35 @@ export default function AttendanceSection() {
   };
 
   return (
-    <div className="glass-card animated-rise rounded-2xl p-4">
+    <div className="premium-panel animated-rise rounded-2xl p-4">
       <h3 className="mb-3 text-lg font-semibold text-slate-800">Attendance</h3>
       {loading ? (
         <Loader />
       ) : (
         <>
           <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-            {!attendanceToday?.checkInTime ? (
+            {/* Check In button: only show if not checked in today */}
+            {!attendanceToday?.checkInTime && (
               <button
                 onClick={handleCheckIn}
-                className="rounded-lg bg-linear-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 disabled:opacity-50"
+                className="rounded-lg bg-linear-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 hover:shadow-emerald-200 disabled:opacity-50"
                 disabled={attLoading}
               >
                 {attLoading ? "Checking in..." : "Check In"}
               </button>
-            ) : !attendanceToday?.checkOutTime ? (
+            )}
+            {/* Check Out button: only show if checked in but not checked out */}
+            {attendanceToday?.checkInTime && !attendanceToday?.checkOutTime && (
               <button
                 onClick={handleCheckOut}
-                className="rounded-lg bg-linear-to-r from-indigo-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 disabled:opacity-50"
+                className="rounded-lg bg-linear-to-r from-indigo-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 hover:shadow-indigo-200 disabled:opacity-50"
                 disabled={attLoading}
               >
                 {attLoading ? "Checking out..." : "Check Out"}
               </button>
-            ) : (
+            )}
+            {/* After check out, show completed message */}
+            {attendanceToday?.checkInTime && attendanceToday?.checkOutTime && (
               <span className="text-green-700 font-semibold">Attendance completed</span>
             )}
           </div>
