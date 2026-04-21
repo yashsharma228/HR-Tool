@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import { getMonthlyReport, getYearlyReport, getAllUsers } from "../services/api";
+import { getAttendanceAnalytics, getAllUsers } from "../services/api";
 import useAuth from "../hooks/useAuth";
 import Loader from "../components/Loader";
 
 export default function AttendanceAnalytics() {
   const { user } = useAuth();
   const [reportType, setReportType] = useState("monthly");
-  const [monthlyData, setMonthlyData] = useState(null);
-  const [yearlyData, setYearlyData] = useState(null);
+  const [reportData, setReportData] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
@@ -25,37 +24,25 @@ export default function AttendanceAnalytics() {
 
   useEffect(() => {
     if (user.role === "admin") {
-      fetchMonthlyReport();
+      fetchReport();
     }
   }, [filters.year, filters.month, filters.userId]);
 
   useEffect(() => {
     if (user.role === "admin" && reportType === "yearly") {
-      fetchYearlyReport();
+      fetchReport();
     }
   }, [filters.year, reportType]);
 
-  const fetchMonthlyReport = async () => {
+  const fetchReport = async () => {
     setLoading(true);
     try {
-      const params = { year: filters.year, month: filters.month };
+      const params = { type: reportType, year: filters.year, month: filters.month };
       if (filters.userId) params.userId = filters.userId;
-      const { data } = await getMonthlyReport(params);
-      setMonthlyData(data);
+      const { data } = await getAttendanceAnalytics(params);
+      setReportData(data);
     } catch {
-      setMonthlyData(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchYearlyReport = async () => {
-    setLoading(true);
-    try {
-      const { data } = await getYearlyReport({ year: filters.year });
-      setYearlyData(data);
-    } catch {
-      setYearlyData(null);
+      setReportData(null);
     } finally {
       setLoading(false);
     }
@@ -129,33 +116,34 @@ export default function AttendanceAnalytics() {
             <Loader />
           ) : (
             <>
-              {reportType === "monthly" && monthlyData && (
+              {reportData && (
                 <div>
                   <div className="mb-6 p-4 bg-linear-to-r from-indigo-500 to-violet-500 rounded-lg text-white">
                     <h3 className="text-lg font-semibold">
-                      {new Date(filters.year, filters.month - 1).toLocaleString("default", { month: "long" })} {filters.year}
+                      {reportData.period.label}
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                       <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">{monthlyData.summary.totalEmployees}</div>
+                        <div className="text-2xl font-bold">{reportData.summary.totalEmployees}</div>
                         <div className="text-sm">Employees</div>
                       </div>
                       <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">{monthlyData.summary.totalPresent}</div>
-                        <div className="text-sm">Total Present</div>
+                        <div className="text-2xl font-bold">{reportData.summary.totalPresentDays}</div>
+                        <div className="text-sm">Total Present Days</div>
                       </div>
                       <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">{monthlyData.summary.totalAbsent}</div>
+                        <div className="text-2xl font-bold">{reportData.breakdown.absent}</div>
                         <div className="text-sm">Total Absent</div>
                       </div>
                       <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">{Math.round(monthlyData.summary.overallPresentPercentage)}%</div>
+                        <div className="text-2xl font-bold">{reportData.summary.avgAttendance}%</div>
                         <div className="text-sm">Avg Attendance</div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto mt-8">
+                  {reportType !== "yearly" ? (
+                    <div className="overflow-x-auto mt-8">
                     <table className="w-full border text-sm">
                       <thead className="bg-slate-50">
                         <tr>
@@ -168,18 +156,18 @@ export default function AttendanceAnalytics() {
                         </tr>
                       </thead>
                       <tbody>
-                        {monthlyData.employees.map((emp) => (
+                        {reportData.employeeRows.map((emp) => (
                           <tr key={emp.employee.id} className="border-t hover:bg-slate-50">
                             <td className="p-3">
                               <div className="font-medium">{emp.employee.name}</div>
                               <div className="text-xs text-slate-500">{emp.employee.email}</div>
                             </td>
-                            <td className="p-3 text-center text-emerald-600 font-semibold">{emp.statistics.presentDays}</td>
-                            <td className="p-3 text-center text-rose-600 font-semibold">{emp.statistics.absentDays}</td>
-                            <td className="p-3 text-center">{emp.statistics.totalDays}</td>
+                            <td className="p-3 text-center text-emerald-600 font-semibold">{emp.presentDays}</td>
+                            <td className="p-3 text-center text-rose-600 font-semibold">{emp.absentDays}</td>
+                            <td className="p-3 text-center">{emp.totalWorkingDays}</td>
                             <td className="p-3 text-center">
-                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(emp.statistics.presentPercentage)}`}>
-                                {emp.statistics.presentPercentage}%
+                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(emp.attendancePercentage)}`}>
+                                {emp.attendancePercentage}%
                               </span>
                             </td>
                             <td className="p-3 text-center">
@@ -214,73 +202,44 @@ export default function AttendanceAnalytics() {
                             </td>
                           </tr>
                         ))}
-                        {monthlyData.employees.length === 0 && (
+                        {reportData.employeeRows.length === 0 && (
                           <tr>
                             <td colSpan={6} className="p-6 text-center text-slate-500">No data for this period</td>
                           </tr>
                         )}
                       </tbody>
                     </table>
-                  </div>
-                </div>
-              )}
-
-              {reportType === "yearly" && yearlyData && (
-                <div>
-                  <div className="mb-6 p-4 bg-linear-to-r from-emerald-500 to-teal-500 rounded-lg text-white">
-                    <h3 className="text-lg font-semibold">Yearly Summary - {yearlyData.year}</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                      <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">{yearlyData.summary.totalDays}</div>
-                        <div className="text-sm">Total Days</div>
-                      </div>
-                      <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">{yearlyData.summary.totalPresent}</div>
-                        <div className="text-sm">Total Present</div>
-                      </div>
-                      <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">{yearlyData.summary.totalAbsent}</div>
-                        <div className="text-sm">Total Absent</div>
-                      </div>
-                      <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">{yearlyData.summary.avgPresentPercentage}%</div>
-                        <div className="text-sm">Avg Attendance</div>
-                      </div>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {yearlyData.months.map((month) => (
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {reportData.dailyTrend.map((month) => (
                       <div key={month.month} className="border rounded-lg p-4 hover:shadow-md transition">
                         <div className="flex justify-between items-center mb-2">
-                          <h4 className="font-semibold text-slate-700">{month.monthName}</h4>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(month.statistics.presentPercentage)}`}>
-                            {month.statistics.presentPercentage}%
+                          <h4 className="font-semibold text-slate-700">{month.label}</h4>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(month.attendancePercentage)}`}>
+                            {month.attendancePercentage}%
                           </span>
                         </div>
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between">
                             <span className="text-slate-500">Present:</span>
-                            <span className="text-emerald-600 font-medium">{month.statistics.presentDays}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Absent:</span>
-                            <span className="text-rose-600 font-medium">{month.statistics.absentDays}</span>
+                            <span className="text-emerald-600 font-medium">{month.present}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-500">Total:</span>
-                            <span className="font-medium">{month.statistics.totalDays}</span>
+                            <span className="font-medium">{month.total}</span>
                           </div>
                         </div>
                         <div className="mt-3 h-2 bg-slate-200 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-linear-to-r from-emerald-400 to-teal-500 transition-all"
-                            style={{ width: `${month.statistics.presentPercentage}%` }}
+                            style={{ width: `${month.attendancePercentage}%` }}
                           />
                         </div>
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

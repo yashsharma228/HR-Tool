@@ -56,8 +56,11 @@ export const getMyAttendance = () => API.get("/attendance/my");
 export const getAllAttendance = (params) => API.get("/attendance", { params });
 
 // Reports
+export const getAttendanceAnalytics = (params) => API.get("/reports/attendance/analytics", { params });
 export const getMonthlyReport = (params) => API.get("/reports/attendance/monthly", { params });
 export const getYearlyReport = (params) => API.get("/reports/attendance/yearly", { params });
+export const getLeaveAnalytics = (params) => API.get("/reports/leaves/analytics", { params });
+export const getSummaryAnalytics = (params) => API.get("/reports/summary/analytics", { params });
 
 // Users
 export const getAllUsers = (params) => API.get("/users", { params });

@@ -4,6 +4,9 @@ import {
   getAllUsers,
   getAllAttendance,
   getAdminDashboardStats,
+  getAttendanceAnalytics,
+  getLeaveAnalytics,
+  getSummaryAnalytics,
   updateLeaveStatus,
 } from "../services/api";
 import { showToast } from "../components/Toast";
@@ -28,6 +31,10 @@ export default function AdminDashboard() {
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
   const [processingLeaveId, setProcessingLeaveId] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [attendanceAnalytics, setAttendanceAnalytics] = useState(null);
+  const [leaveAnalytics, setLeaveAnalytics] = useState(null);
+  const [summaryAnalytics, setSummaryAnalytics] = useState(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
@@ -43,6 +50,38 @@ export default function AdminDashboard() {
       setDashboardStats(null);
     } finally {
       setStatsLoading(false);
+    }
+  };
+
+  const fetchReports = async () => {
+    setReportLoading(true);
+    try {
+      const params = {
+        type: reportType,
+        year: reportYear,
+        month: reportMonth,
+      };
+
+      if (reportEmployeeId) {
+        params.userId = reportEmployeeId;
+      }
+
+      const [attendanceRes, leaveRes, summaryRes] = await Promise.all([
+        getAttendanceAnalytics(params),
+        getLeaveAnalytics(params),
+        getSummaryAnalytics(params),
+      ]);
+
+      setAttendanceAnalytics(attendanceRes.data);
+      setLeaveAnalytics(leaveRes.data);
+      setSummaryAnalytics(summaryRes.data);
+    } catch {
+      setAttendanceAnalytics(null);
+      setLeaveAnalytics(null);
+      setSummaryAnalytics(null);
+      showToast("Failed to load reports", "error");
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -68,6 +107,14 @@ export default function AdminDashboard() {
     load();
     fetchDashboardStats();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "reports") {
+      return;
+    }
+
+    fetchReports();
+  }, [activeTab, reportType, reportYear, reportMonth, reportEmployeeId]);
 
   const formatLongDate = (value) =>
     new Date(value).toLocaleDateString("en-US", {
@@ -249,6 +296,9 @@ export default function AdminDashboard() {
         )
       );
       await fetchDashboardStats();
+      if (activeTab === "reports") {
+        await fetchReports();
+      }
       showToast(`Leave ${status.toLowerCase()} successfully`);
     } catch (error) {
       showToast(error.response?.data?.message || `Failed to ${status.toLowerCase()} leave`, "error");
@@ -369,7 +419,7 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
-        <div className="pro-report-range">{reportRange.label}</div>
+        <div className="pro-report-range">{attendanceAnalytics?.period?.label || reportRange.label}</div>
       </div>
 
       <div className="pro-report-tabs">
@@ -378,13 +428,16 @@ export default function AdminDashboard() {
         <button className={reportSection === "summary" ? "active" : ""} onClick={() => setReportSection("summary")}>Summary Analytics</button>
       </div>
 
-      {reportSection === "attendance" && (
+      {reportLoading && <Loader />}
+      {!reportLoading && !attendanceAnalytics && <p className="muted">No report data available for this period.</p>}
+
+      {!reportLoading && attendanceAnalytics && reportSection === "attendance" && (
         <>
           <section className="pro-stat-grid">
-            <div className="pro-stat-card"><h4>Total Employees</h4><p>{attendanceStats.totalEmployees}</p><span>Included in report</span></div>
-            <div className="pro-stat-card"><h4>Avg Attendance %</h4><p>{attendanceStats.avgAttendance}</p><span>Average attendance</span></div>
-            <div className="pro-stat-card"><h4>Total Present Days</h4><p>{attendanceStats.totalPresent}</p><span>Present-like records</span></div>
-            <div className="pro-stat-card"><h4>Late Count</h4><p>{attendanceStats.totalLate}</p><span>Late arrivals</span></div>
+            <div className="pro-stat-card"><h4>Total Employees</h4><p>{attendanceAnalytics.summary.totalEmployees}</p><span>Included in report</span></div>
+            <div className="pro-stat-card"><h4>Avg Attendance %</h4><p>{attendanceAnalytics.summary.avgAttendance}%</p><span>Average attendance</span></div>
+            <div className="pro-stat-card"><h4>Total Present Days</h4><p>{attendanceAnalytics.summary.totalPresentDays}</p><span>Present records</span></div>
+            <div className="pro-stat-card"><h4>Late Count</h4><p>{attendanceAnalytics.summary.lateCount}</p><span>Late arrivals</span></div>
           </section>
 
           <section className="pro-two-col">
@@ -393,13 +446,13 @@ export default function AdminDashboard() {
                 <h3>Attendance Trend</h3>
               </div>
               <div className="pro-chart-bars">
-                {trendData.map((item) => (
+                {attendanceAnalytics.dailyTrend.map((item) => (
                   <div key={item.label} className="pro-chart-bar-group">
                     <span>{item.label}</span>
                     <div className="pro-chart-bar-track">
-                      <div className="pro-chart-bar-fill" style={{ width: `${item.total ? (item.present / item.total) * 100 : 0}%` }} />
+                      <div className="pro-chart-bar-fill" style={{ width: `${item.attendancePercentage || 0}%` }} />
                     </div>
-                    <strong>{item.present}/{item.total || 0}</strong>
+                    <strong>{item.attendancePercentage || 0}%</strong>
                   </div>
                 ))}
               </div>
@@ -408,9 +461,9 @@ export default function AdminDashboard() {
             <div className="pro-panel">
               <h3>Present vs Absent vs Leave</h3>
               <div className="pro-breakdown-list">
-                <div className="pro-breakdown-row"><span>Present</span><strong>{attendanceStats.totalPresent}</strong></div>
-                <div className="pro-breakdown-row"><span>Absent</span><strong>{attendanceStats.totalAbsent}</strong></div>
-                <div className="pro-breakdown-row"><span>Leave</span><strong>{attendanceStats.totalLeave}</strong></div>
+                <div className="pro-breakdown-row"><span>Present</span><strong>{attendanceAnalytics.breakdown.present}</strong></div>
+                <div className="pro-breakdown-row"><span>Absent</span><strong>{attendanceAnalytics.breakdown.absent}</strong></div>
+                <div className="pro-breakdown-row"><span>Leave</span><strong>{attendanceAnalytics.breakdown.leave}</strong></div>
               </div>
             </div>
           </section>
@@ -420,14 +473,18 @@ export default function AdminDashboard() {
               <h3>Attendance Report Table</h3>
               <button
                 className="pro-btn pro-btn-sm"
-                onClick={() => downloadCsv(`attendance-${reportType}.csv`, attendanceRows.map((row) => ({
-                  Employee: row.employee.name,
-                  Present: row.present,
-                  Absent: row.absent,
-                  Leave: row.leave,
-                  Late: row.late,
-                  AttendancePercent: `${row.attendancePercent}%`,
-                })))}
+                onClick={() => downloadCsv(`attendance-${reportType}.csv`, attendanceAnalytics.employeeRows.flatMap((row) =>
+                  row.records.map((record) => ({
+                    "Employee Name": row.employee.name,
+                    Date: new Date(record.date).toLocaleDateString(),
+                    "Check In": record.checkInTime ? new Date(record.checkInTime).toLocaleTimeString() : "-",
+                    "Check Out": record.checkOutTime ? new Date(record.checkOutTime).toLocaleTimeString() : "-",
+                    "Working Hours": record.workingHours,
+                    Status: record.status,
+                    Late: record.isLate ? "Yes" : "No",
+                    "Leave Type": record.leaveType || "-",
+                  }))
+                ))}
               >
                 Export CSV
               </button>
@@ -441,14 +498,14 @@ export default function AdminDashboard() {
                 <span>Late</span>
                 <span>Attendance %</span>
               </div>
-              {attendanceRows.map((row) => (
-                <div className={`pro-table-row pro-table-row-wide ${row.attendancePercent > 0 && row.attendancePercent < 50 ? "low" : ""}`} key={row.employee._id}>
+              {attendanceAnalytics.employeeRows.map((row) => (
+                <div className={`pro-table-row pro-table-row-wide ${row.attendancePercentage < 75 ? "low" : ""}`} key={row.employee.id}>
                   <span>{row.employee.name}</span>
-                  <span>{row.present}</span>
-                  <span>{row.absent}</span>
-                  <span>{row.leave}</span>
-                  <span>{row.late}</span>
-                  <span>{row.attendancePercent}%</span>
+                  <span>{row.presentDays}</span>
+                  <span>{row.absentDays}</span>
+                  <span>{row.leaveDays}</span>
+                  <span>{row.lateCount}</span>
+                  <span>{row.attendancePercentage}%</span>
                 </div>
               ))}
             </div>
@@ -456,13 +513,13 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {reportSection === "leave" && (
+      {!reportLoading && leaveAnalytics && reportSection === "leave" && (
         <>
           <section className="pro-stat-grid">
-            <div className="pro-stat-card"><h4>Total Leaves</h4><p>{leaveStats.total}</p><span>In selected period</span></div>
-            <div className="pro-stat-card"><h4>Approved Leaves</h4><p>{leaveStats.approved}</p><span>Approved requests</span></div>
-            <div className="pro-stat-card"><h4>Pending Requests</h4><p>{leaveStats.pending}</p><span>Awaiting review</span></div>
-            <div className="pro-stat-card"><h4>Rejected Leaves</h4><p>{leaveStats.rejected}</p><span>Declined requests</span></div>
+            <div className="pro-stat-card"><h4>Total Leaves</h4><p>{leaveAnalytics.summary.totalLeaves}</p><span>In selected period</span></div>
+            <div className="pro-stat-card"><h4>Approved Leaves</h4><p>{leaveAnalytics.summary.approvedLeaves}</p><span>Approved requests</span></div>
+            <div className="pro-stat-card"><h4>Pending Requests</h4><p>{leaveAnalytics.summary.pendingLeaves}</p><span>Awaiting review</span></div>
+            <div className="pro-stat-card"><h4>Rejected Leaves</h4><p>{leaveAnalytics.summary.rejectedLeaves}</p><span>Declined requests</span></div>
           </section>
 
           <section className="pro-panel">
@@ -470,11 +527,11 @@ export default function AdminDashboard() {
               <h3>Leave Report Table</h3>
               <button
                 className="pro-btn pro-btn-sm"
-                onClick={() => downloadCsv(`leave-${reportType}.csv`, filteredLeaves.map((leave) => ({
-                  Employee: leave.userId?.name || "Employee",
+                onClick={() => downloadCsv(`leave-${reportType}.csv`, leaveAnalytics.rows.map((leave) => ({
+                  Employee: leave.employee.name,
                   LeaveType: leave.leaveType,
-                  From: new Date(leave.startDate).toLocaleDateString(),
-                  To: new Date(leave.endDate).toLocaleDateString(),
+                  From: new Date(leave.fromDate).toLocaleDateString(),
+                  To: new Date(leave.toDate).toLocaleDateString(),
                   Days: leave.totalDays,
                   Status: leave.status,
                 })))}
@@ -491,41 +548,41 @@ export default function AdminDashboard() {
                 <span>Days</span>
                 <span>Status</span>
               </div>
-              {filteredLeaves.map((leave) => (
-                <div className="pro-table-row pro-table-row-leaves" key={leave._id}>
-                  <span>{leave.userId?.name || "Employee"}</span>
+              {leaveAnalytics.rows.map((leave) => (
+                <div className="pro-table-row pro-table-row-leaves" key={leave.id}>
+                  <span>{leave.employee.name}</span>
                   <span>{leave.leaveType}</span>
-                  <span>{new Date(leave.startDate).toLocaleDateString()}</span>
-                  <span>{new Date(leave.endDate).toLocaleDateString()}</span>
+                  <span>{new Date(leave.fromDate).toLocaleDateString()}</span>
+                  <span>{new Date(leave.toDate).toLocaleDateString()}</span>
                   <span>{leave.totalDays}</span>
                   <span>{leave.status}</span>
                 </div>
               ))}
-              {!filteredLeaves.length && <p className="muted">No leave records found for this period.</p>}
+              {!leaveAnalytics.rows.length && <p className="muted">No leave records found for this period.</p>}
             </div>
           </section>
         </>
       )}
 
-      {reportSection === "summary" && (
+      {!reportLoading && summaryAnalytics && reportSection === "summary" && (
         <section className="pro-content-stack">
           <div className="pro-two-col">
             <div className="pro-panel">
               <h3>Best Attendance Employee</h3>
-              {bestAttendanceEmployee ? (
+              {summaryAnalytics.summary.bestAttendanceEmployee ? (
                 <div className="pro-highlight-box">
-                  <strong>{bestAttendanceEmployee.employee.name}</strong>
-                  <p>{bestAttendanceEmployee.attendancePercent}% attendance rate</p>
+                  <strong>{summaryAnalytics.summary.bestAttendanceEmployee.employee.name}</strong>
+                  <p>{summaryAnalytics.summary.bestAttendanceEmployee.attendancePercentage}% attendance rate</p>
                 </div>
               ) : <p className="muted">No attendance data available.</p>}
             </div>
 
             <div className="pro-panel">
               <h3>Most Leaves Taken</h3>
-              {mostLeavesEmployee ? (
+              {summaryAnalytics.summary.mostLeavesEmployee ? (
                 <div className="pro-highlight-box warn">
-                  <strong>{mostLeavesEmployee.employee.name}</strong>
-                  <p>{mostLeavesEmployee.leave} approved leave entries</p>
+                  <strong>{summaryAnalytics.summary.mostLeavesEmployee.employee.name}</strong>
+                  <p>{summaryAnalytics.summary.mostLeavesEmployee.totalLeaves} leave request(s)</p>
                 </div>
               ) : <p className="muted">No leave data available.</p>}
             </div>
@@ -534,12 +591,12 @@ export default function AdminDashboard() {
           <div className="pro-two-col">
             <div className="pro-panel">
               <h3>Low Attendance Employees</h3>
-              {lowAttendanceEmployees.length ? lowAttendanceEmployees.map((row) => (
-                <div className="pro-list-row" key={row.employee._id}>
+              {summaryAnalytics.summary.lowAttendanceEmployees.length ? summaryAnalytics.summary.lowAttendanceEmployees.map((row) => (
+                <div className="pro-list-row" key={row.employee.id}>
                   <div className="avatar">{row.employee.name[0]}</div>
                   <div>
                     <strong>{row.employee.name}</strong>
-                    <p>{row.attendancePercent}% attendance</p>
+                    <p>{row.attendancePercentage}% attendance</p>
                   </div>
                 </div>
               )) : <p className="muted">No low attendance employees in this period.</p>}
@@ -548,11 +605,11 @@ export default function AdminDashboard() {
             <div className="pro-panel">
               <h3>Monthly Trend Graph</h3>
               <div className="pro-chart-bars">
-                {trendData.map((item) => (
+                {summaryAnalytics.trend.map((item) => (
                   <div key={item.label} className="pro-chart-bar-group compact">
                     <span>{item.label}</span>
                     <div className="pro-chart-bar-track">
-                      <div className="pro-chart-bar-fill alt" style={{ width: `${item.total ? (item.present / item.total) * 100 : 0}%` }} />
+                      <div className="pro-chart-bar-fill alt" style={{ width: `${item.attendancePercentage || 0}%` }} />
                     </div>
                   </div>
                 ))}

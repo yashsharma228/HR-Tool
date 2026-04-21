@@ -4,7 +4,10 @@ const auth = require('../middleware/auth');
 const role = require('../middleware/role');
 const reportCtrl = require('../controllers/reportController');
 
-router.get('/attendance/monthly', auth, role('admin'), reportCtrl.getMonthlyReport);
-router.get('/attendance/yearly', auth, role('admin'), reportCtrl.getYearlyReport);
+router.get('/attendance/analytics', auth, reportCtrl.getAttendanceAnalytics);
+router.get('/attendance/monthly', auth, reportCtrl.getMonthlyReport);
+router.get('/attendance/yearly', auth, reportCtrl.getYearlyReport);
+router.get('/leaves/analytics', auth, role('admin'), reportCtrl.getLeaveReport);
+router.get('/summary/analytics', auth, role('admin'), reportCtrl.getSummaryAnalytics);
 
 module.exports = router;

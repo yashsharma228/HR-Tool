@@ -1,25 +1,77 @@
-// Admin: Check-in for any employee
+const Attendance = require('../models/Attendance');
+const User = require('../models/User');
+const { sendAdminAttendanceNotification } = require('../utils/emailService');
+const { createNotification, notifyAdmins } = require('../utils/notificationService');
+
+const OFFICE_START_HOUR = 10;
+const OFFICE_START_MIN = 0;
+const OFFICE_END_HOUR = 18;
+const OFFICE_END_MIN = 0;
+
+function getOfficeBoundary(referenceDate, hour, minute) {
+  return new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate(),
+    hour,
+    minute,
+    0,
+    0
+  );
+}
+
+function deriveAttendanceState({ checkInTime, checkOutTime, hasApprovedLeave = false }) {
+  if (hasApprovedLeave) {
+    return { status: 'Leave', isLate: false, workingHours: 0 };
+  }
+
+  if (!checkInTime) {
+    return { status: 'Absent', isLate: false, workingHours: 0 };
+  }
+
+  const officeStart = getOfficeBoundary(checkInTime, OFFICE_START_HOUR, OFFICE_START_MIN);
+  const officeEnd = getOfficeBoundary(checkInTime, OFFICE_END_HOUR, OFFICE_END_MIN);
+  const isLate = checkInTime > officeStart;
+  const workingHours = checkOutTime
+    ? Number(((checkOutTime - checkInTime) / (1000 * 60 * 60)).toFixed(2))
+    : 0;
+
+  if (checkOutTime && checkOutTime < officeEnd) {
+    return { status: 'Half-day', isLate, workingHours };
+  }
+
+  return { status: 'Present', isLate, workingHours };
+}
+
+function applyAttendanceState(attendance) {
+  const state = deriveAttendanceState({
+    checkInTime: attendance.checkInTime,
+    checkOutTime: attendance.checkOutTime,
+  });
+
+  attendance.status = state.status;
+  attendance.isLate = state.isLate;
+  attendance.workingHours = state.workingHours;
+  attendance.workHours = state.workingHours;
+}
+
 exports.adminCheckIn = async (req, res) => {
   const { userId } = req.params;
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
 
   let attendance = await Attendance.findOne({ userId, date: today });
   if (attendance && attendance.checkInTime) {
     return res.status(400).json({ message: 'Already checked in today' });
   }
+
   if (!attendance) {
     attendance = new Attendance({ userId, date: today });
   }
+
   attendance.checkInTime = new Date();
-  const officeStart = new Date();
-  officeStart.setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0);
-  if (attendance.checkInTime > officeStart) {
-    attendance.status = "Late";
-  } else {
-    attendance.status = "Present";
-  }
   attendance.isManualEntry = true;
+  applyAttendanceState(attendance);
   await attendance.save();
 
   try {
@@ -40,11 +92,10 @@ exports.adminCheckIn = async (req, res) => {
   res.json(attendance);
 };
 
-// Admin: Check-out for any employee
 exports.adminCheckOut = async (req, res) => {
   const { userId } = req.params;
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
 
   let attendance = await Attendance.findOne({ userId, date: today });
   if (!attendance || !attendance.checkInTime) {
@@ -53,18 +104,10 @@ exports.adminCheckOut = async (req, res) => {
   if (attendance.checkOutTime) {
     return res.status(400).json({ message: 'Already checked out today' });
   }
+
   attendance.checkOutTime = new Date();
-  const officeEnd = new Date();
-  officeEnd.setHours(OFFICE_END_HOUR, OFFICE_END_MIN, 0, 0);
-  if (attendance.checkOutTime < officeEnd) {
-    attendance.status = "Half-day";
-  } else if (attendance.checkInTime > new Date().setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0)) {
-    attendance.status = "Late";
-  } else {
-    attendance.status = "Present";
-  }
-  attendance.workHours = ((attendance.checkOutTime - attendance.checkInTime) / (1000 * 60 * 60)).toFixed(2);
   attendance.isManualEntry = true;
+  applyAttendanceState(attendance);
   await attendance.save();
 
   try {
@@ -84,24 +127,12 @@ exports.adminCheckOut = async (req, res) => {
 
   res.json(attendance);
 };
-const Attendance = require('../models/Attendance');
-const User = require('../models/User');
-const { sendEmail, sendAdminAttendanceNotification } = require('../utils/emailService');
-const { createNotification, notifyAdmins } = require('../utils/notificationService');
 
-// Office hours config
-const OFFICE_START_HOUR = 10;
-const OFFICE_START_MIN = 0;
-const OFFICE_END_HOUR = 18;
-const OFFICE_END_MIN = 0;
-
-// Employee: Check-in
 exports.checkIn = async (req, res) => {
   const userId = req.user.userId;
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
 
-  // Prevent double check-in
   let attendance = await Attendance.findOne({ userId, date: today });
   if (attendance && attendance.checkInTime) {
     return res.status(400).json({ message: 'Already checked in today' });
@@ -110,22 +141,11 @@ exports.checkIn = async (req, res) => {
   if (!attendance) {
     attendance = new Attendance({ userId, date: today });
   }
+
   attendance.checkInTime = new Date();
-
-  // Office start time
-  const officeStart = new Date();
-  officeStart.setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0);
-
-  // Status logic
-  if (attendance.checkInTime > officeStart) {
-    attendance.status = "Late";
-  } else {
-    attendance.status = "Present";
-  }
-
+  applyAttendanceState(attendance);
   await attendance.save();
 
-  // Send admin notification on check-in
   try {
     const user = await User.findById(userId);
     if (user) {
@@ -138,7 +158,6 @@ exports.checkIn = async (req, res) => {
         metadata: { attendanceId: attendance._id, status: attendance.status },
       });
 
-      const { sendAdminAttendanceNotification } = require('../utils/emailService');
       sendAdminAttendanceNotification(user, attendance).catch(() => {});
     }
   } catch {}
@@ -146,11 +165,10 @@ exports.checkIn = async (req, res) => {
   res.json(attendance);
 };
 
-// Employee: Check-out
 exports.checkOut = async (req, res) => {
   const userId = req.user.userId;
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
 
   let attendance = await Attendance.findOne({ userId, date: today });
   if (!attendance || !attendance.checkInTime) {
@@ -161,26 +179,9 @@ exports.checkOut = async (req, res) => {
   }
 
   attendance.checkOutTime = new Date();
-
-  // Office end time
-  const officeEnd = new Date();
-  officeEnd.setHours(OFFICE_END_HOUR, OFFICE_END_MIN, 0, 0);
-
-  // Status priority: Half Day > Late > Present
-  if (attendance.checkOutTime < officeEnd) {
-    attendance.status = "Half-day";
-  } else if (attendance.checkInTime > new Date().setHours(OFFICE_START_HOUR, OFFICE_START_MIN, 0, 0)) {
-    attendance.status = "Late";
-  } else {
-    attendance.status = "Present";
-  }
-
-  // Work hours
-  attendance.workHours = ((attendance.checkOutTime - attendance.checkInTime) / (1000 * 60 * 60)).toFixed(2);
-
+  applyAttendanceState(attendance);
   await attendance.save();
 
-  // Send admin notification on check-out
   try {
     const user = await User.findById(userId);
     if (user) {
@@ -193,7 +194,6 @@ exports.checkOut = async (req, res) => {
         metadata: { attendanceId: attendance._id, status: attendance.status },
       });
 
-      const { sendAdminAttendanceNotification } = require('../utils/emailService');
       sendAdminAttendanceNotification(user, attendance).catch(() => {});
     }
   } catch {}
@@ -201,13 +201,11 @@ exports.checkOut = async (req, res) => {
   res.json(attendance);
 };
 
-// Employee: View own attendance
 exports.getMyAttendance = async (req, res) => {
   const records = await Attendance.find({ userId: req.user.userId }).sort({ date: -1 });
   res.json(records);
 };
 
-// Admin: View all attendance (with pagination & filters)
 exports.getAllAttendance = async (req, res) => {
   try {
     const { page = 1, limit = 10, userId, startDate, endDate } = req.query;
@@ -225,16 +223,16 @@ exports.getAllAttendance = async (req, res) => {
       .populate('userId', 'name email role')
       .sort({ date: -1 })
       .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit, 10));
 
     res.json({
       data: records,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / limit)
-      }
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
