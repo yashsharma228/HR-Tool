@@ -95,13 +95,28 @@ function resolveAttendanceStatus(record, leaveForDay) {
     };
   }
 
-  if (!record || !record.checkInTime) {
+  if (!record) {
     return {
       status: 'Absent',
       isLate: false,
       workingHours: 0,
       productive: false,
       leaveType: null,
+    };
+  }
+
+  if (!record.checkInTime) {
+    const rawStatus = record.status || 'Absent';
+    const normalizedStatus = rawStatus === 'On Leave' ? 'Leave' : rawStatus === 'Half-day' ? 'Half Day' : rawStatus;
+    const isLate = typeof record.isLate === 'boolean' ? record.isLate : normalizedStatus === 'Late';
+    const workingHours = Number(record.workingHours ?? record.workHours ?? 0);
+
+    return {
+      status: normalizedStatus,
+      isLate,
+      workingHours,
+      productive: workingHours >= 8,
+      leaveType: normalizedStatus === 'Leave' ? record.leaveType || null : null,
     };
   }
 
@@ -202,7 +217,7 @@ function buildAttendanceAnalyticsPayload({ type, range, employees, attendanceRec
     const absentDays = dailyRecords.filter((record) => record.status === 'Absent').length;
     const leaveDays = dailyRecords.filter((record) => record.status === 'Leave').length;
     const halfDays = dailyRecords.filter((record) => record.status === 'Half Day').length;
-    const lateCount = dailyRecords.filter((record) => record.isLate).length;
+    const lateCount = dailyRecords.filter((record) => record.status === 'Late' || record.isLate).length;
     const totalWorkingDays = workingDates.length;
     const workingHoursTotal = Number(dailyRecords.reduce((sum, record) => sum + record.workingHours, 0).toFixed(2));
     const attendancePercentage = totalWorkingDays ? Number(((presentDays / totalWorkingDays) * 100).toFixed(1)) : 0;
