@@ -181,6 +181,15 @@ describe('Leave Controller', () => {
     });
 
     it('should approve leave and reduce balance', async () => {
+      await Notification.create({
+        recipient: admin._id,
+        actor: user._id,
+        type: 'leave_applied',
+        title: 'New leave request',
+        message: 'Employee applied for leave.',
+        metadata: { leaveId: leave._id },
+      });
+
       const res = await request(app)
         .patch(`/api/leaves/${leave._id}/status`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -192,6 +201,12 @@ describe('Leave Controller', () => {
 
       const updatedUser = await User.findById(user._id);
       expect(updatedUser.leaveBalance).toBe(17);
+
+      const adminNotification = await Notification.findOne({
+        type: 'leave_applied',
+        'metadata.leaveId': leave._id,
+      });
+      expect(adminNotification).toBeNull();
     });
 
     it('should reject leave without reducing balance', async () => {

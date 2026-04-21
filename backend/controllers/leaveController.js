@@ -1,5 +1,6 @@
 const Leave = require('../models/Leave');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { sendEmail, sendLeaveApprovalEmail, sendLeaveRejectionEmail, sendWelcomeEmail, sendAdminLeaveNotification } = require('../utils/emailService');
 const { createNotification, notifyAdmins } = require('../utils/notificationService');
 
@@ -168,6 +169,11 @@ exports.updateLeaveStatus = async (req, res) => {
 
   leave.status = status;
   await leave.save();
+
+  await Notification.deleteMany({
+    type: 'leave_applied',
+    'metadata.leaveId': leave._id,
+  });
 
   // On approval, reduce leave balance
   if (status === 'Approved') {

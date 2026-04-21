@@ -4,6 +4,7 @@ import {
   getAllUsers,
   getAllAttendance,
   getAdminDashboardStats,
+  updateLeaveStatus,
 } from "../services/api";
 import { showToast } from "../components/Toast";
 import Loader from "../components/Loader";
@@ -26,6 +27,7 @@ export default function AdminDashboard() {
   const [reportEmployeeId, setReportEmployeeId] = useState("");
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [processingLeaveId, setProcessingLeaveId] = useState(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
@@ -83,16 +85,54 @@ export default function AdminDashboard() {
     : "0 / 0";
 
   const presentPct = Number(dashboardStats?.attendancePercent || 0);
-  const recentAttendance = useMemo(() => attendance.slice(0, 3), [attendance]);
-  const recentLeaves = useMemo(() => leaves.slice(0, 3), [leaves]);
   const pendingLeaves = useMemo(
-    () => leaves.filter((leave) => leave.status === "Pending").slice(0, 5),
+    () => leaves.filter((leave) => leave.status === "Pending"),
     [leaves]
   );
   const latestUsers = useMemo(
     () => users.filter((user) => user.role === "employee").slice(0, 5),
     [users]
   );
+  const todayAttendance = useMemo(() => {
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    return attendance
+      .filter((record) => {
+        const recordDate = new Date(record.date);
+        return recordDate >= startOfDay && recordDate < endOfDay;
+      })
+      .sort((left, right) => {
+        const leftTime = new Date(left.checkInTime || left.updatedAt || left.createdAt || left.date).getTime();
+        const rightTime = new Date(right.checkInTime || right.updatedAt || right.createdAt || right.date).getTime();
+        return rightTime - leftTime;
+      });
+  }, [attendance, now]);
+  const recentActivity = useMemo(() => {
+    const attendanceActivity = attendance.map((record) => ({
+      id: `attendance-${record._id}`,
+      kind: "attendance",
+      occurredAt: new Date(record.updatedAt || record.checkOutTime || record.checkInTime || record.createdAt || record.date),
+      title: record.userId?.name || "Employee",
+      description: buildAttendanceActivityText(record),
+      avatar: (record.userId?.name || "U")[0],
+    }));
+
+    const leaveActivity = leaves.map((leave) => ({
+      id: `leave-${leave._id}`,
+      kind: "leave",
+      occurredAt: new Date(leave.updatedAt || leave.appliedAt || leave.createdAt || leave.startDate),
+      title: leave.userId?.name || "Employee",
+      description: `${leave.leaveType} leave ${leave.status.toLowerCase()} (${leave.totalDays} day${leave.totalDays > 1 ? "s" : ""})`,
+      avatar: (leave.userId?.name || "U")[0],
+    }));
+
+    return [...attendanceActivity, ...leaveActivity]
+      .sort((left, right) => right.occurredAt - left.occurredAt)
+      .slice(0, 8);
+  }, [attendance, leaves]);
 
   const reportRange = useMemo(
     () => getReportRange(reportType, reportYear, reportMonth, now),
@@ -194,6 +234,29 @@ export default function AdminDashboard() {
     [attendanceRows]
   );
 
+  const pendingLeaveCount = pendingLeaves.length;
+  const totalLeaveCount = leaves.length;
+
+  const handleLeaveDecision = async (leaveId, status) => {
+    setProcessingLeaveId(leaveId);
+    try {
+      const { data } = await updateLeaveStatus(leaveId, status);
+      setLeaves((current) =>
+        current.map((leave) =>
+          leave._id === leaveId
+            ? { ...leave, ...data, userId: leave.userId }
+            : leave
+        )
+      );
+      await fetchDashboardStats();
+      showToast(`Leave ${status.toLowerCase()} successfully`);
+    } catch (error) {
+      showToast(error.response?.data?.message || `Failed to ${status.toLowerCase()} leave`, "error");
+    } finally {
+      setProcessingLeaveId(null);
+    }
+  };
+
   const renderDashboardTab = () => (
     <>
       <section className="pro-stat-grid pro-animate-in">
@@ -221,8 +284,12 @@ export default function AdminDashboard() {
         <div className="pro-panel">
           <h3>Activity Summary</h3>
           <div className="pro-mini-grid">
-            <div><strong>{dashboardStats?.onLeave || 0}</strong><span>Leave Requests</span></div>
+            <div><strong>{pendingLeaveCount}</strong><span>Pending Leave Requests</span></div>
             <div><strong>{dashboardStats?.attendanceRecordsToday || 0}</strong><span>Attendance Records</span></div>
+          </div>
+          <div className="pro-overview-sub">
+            <span>{totalLeaveCount} total leave request(s)</span>
+            <span>{leaveStats.approved} approved</span>
           </div>
         </div>
       </section>
@@ -230,30 +297,31 @@ export default function AdminDashboard() {
       <section className="pro-two-col pro-animate-in">
         <div className="pro-panel">
           <h3>Recent Today</h3>
-          {recentAttendance.map((item) => (
+          {todayAttendance.map((item) => (
             <div className="pro-list-row" key={item._id}>
               <div className="avatar">{(item.userId?.name || "U")[0]}</div>
               <div>
                 <strong>{item.userId?.name || "Employee"}</strong>
-                <p>{item.status} at {new Date(item.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                <p>{formatAttendanceTimeline(item)}</p>
               </div>
             </div>
           ))}
-          {recentAttendance.length === 0 && <p className="muted">No recent attendance records.</p>}
+          {todayAttendance.length === 0 && <p className="muted">No attendance marked today.</p>}
         </div>
 
         <div className="pro-panel">
           <h3>Recent Activity</h3>
-          {recentLeaves.map((leave) => (
-            <div className="pro-list-row" key={leave._id}>
-              <div className="avatar">{(leave.userId?.name || "U")[0]}</div>
+          {recentActivity.map((activity) => (
+            <div className="pro-list-row" key={activity.id}>
+              <div className="avatar">{activity.avatar}</div>
               <div>
-                <strong>{leave.userId?.name || "Employee"}</strong>
-                <p>{leave.leaveType} leave ({leave.status})</p>
+                <strong>{activity.title}</strong>
+                <p>{activity.description}</p>
               </div>
+              <span className="text-xs text-slate-400">{formatActivityTime(activity.occurredAt)}</span>
             </div>
           ))}
-          {recentLeaves.length === 0 && <p className="muted">No leave activity today.</p>}
+          {recentActivity.length === 0 && <p className="muted">No recent activity yet.</p>}
         </div>
       </section>
     </>
@@ -500,17 +568,43 @@ export default function AdminDashboard() {
     <section className="pro-content-stack pro-animate-in">
       <div className="pro-two-col">
         <div className="pro-panel">
-          <h3>Pending Leave Requests</h3>
-          {pendingLeaves.map((leave) => (
+          <div className="pro-panel-actions">
+            <h3>All Leave Requests</h3>
+            <span className="text-sm text-slate-500">Approve or reject pending requests</span>
+          </div>
+          {leaves.map((leave) => (
             <div className="pro-list-row" key={leave._id}>
               <div className="avatar">{(leave.userId?.name || "U")[0]}</div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <strong>{leave.userId?.name || "Employee"}</strong>
-                <p>{leave.leaveType} leave for {leave.totalDays} day(s)</p>
+                <p>
+                  {leave.leaveType} leave for {leave.totalDays} day(s) • {new Date(leave.startDate).toLocaleDateString()} to {new Date(leave.endDate).toLocaleDateString()}
+                </p>
+                <p className="muted">Status: {leave.status}</p>
               </div>
+              {leave.status === "Pending" ? (
+                <div className="flex gap-2">
+                  <button
+                    className="pro-btn pro-btn-sm"
+                    disabled={processingLeaveId === leave._id}
+                    onClick={() => handleLeaveDecision(leave._id, "Approved")}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    className="pro-btn pro-btn-sm ghost"
+                    disabled={processingLeaveId === leave._id}
+                    onClick={() => handleLeaveDecision(leave._id, "Rejected")}
+                  >
+                    Reject
+                  </button>
+                </div>
+              ) : (
+                <span className="text-sm font-semibold text-slate-500">{leave.status}</span>
+              )}
             </div>
           ))}
-          {pendingLeaves.length === 0 && <p className="muted">No pending leave requests.</p>}
+          {leaves.length === 0 && <p className="muted">No leave requests found.</p>}
         </div>
 
         <div className="pro-panel">
@@ -531,13 +625,14 @@ export default function AdminDashboard() {
       <div className="pro-panel">
         <h3>Attendance Audit</h3>
         <div className="pro-simple-table">
-          {attendance.slice(0, 8).map((item) => (
+          {todayAttendance.map((item) => (
             <div className="pro-table-row" key={item._id}>
               <span>{new Date(item.date).toLocaleDateString()}</span>
               <span>{item.userId?.name || "Employee"}</span>
-              <span>{item.status}</span>
+              <span>{formatAttendanceTimeline(item)}</span>
             </div>
           ))}
+          {todayAttendance.length === 0 && <p className="muted">No attendance audit entries for today.</p>}
         </div>
       </div>
     </section>
@@ -641,6 +736,45 @@ function buildTrendData(records, range, type) {
 
 function buildYearOptions(currentYear) {
   return Array.from({ length: 5 }, (_, index) => currentYear - index);
+}
+
+function formatAttendanceTimeline(record) {
+  const parts = [];
+
+  if (record.checkInTime) {
+    parts.push(`Came at ${new Date(record.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+  }
+
+  if (record.checkOutTime) {
+    parts.push(`Went at ${new Date(record.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+  }
+
+  if (!parts.length) {
+    parts.push(record.status || "Attendance updated");
+  }
+
+  return `${parts.join(" • ")} • ${record.status}`;
+}
+
+function buildAttendanceActivityText(record) {
+  if (record.checkOutTime) {
+    return `Checked out at ${new Date(record.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${record.status})`;
+  }
+
+  if (record.checkInTime) {
+    return `Checked in at ${new Date(record.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${record.status})`;
+  }
+
+  return `Attendance updated (${record.status})`;
+}
+
+function formatActivityTime(value) {
+  return new Date(value).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function downloadCsv(fileName, rows) {
