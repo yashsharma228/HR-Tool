@@ -65,6 +65,11 @@ export const addUser = (data) => API.post("/users", data);
 export const updateUser = (id, data) => API.put(`/users/${id}`, data);
 export const deleteUser = (id) => API.delete(`/users/${id}`);
 
+// Notifications
+export const getMyNotifications = (limit = 12) => API.get("/notifications", { params: { limit } });
+export const markNotificationRead = (id) => API.patch(`/notifications/${id}/read`);
+export const markAllNotificationsRead = () => API.patch("/notifications/read-all");
+
 export const getProfile = async () => {
   const { data } = await API.get("/users/me");
   return data;

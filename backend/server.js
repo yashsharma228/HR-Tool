@@ -26,6 +26,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/leaves', require('./routes/leaveRoutes'));
 app.use('/api/attendance', require('./routes/attendanceRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/admin', require('./routes/dashboardRoutes'));

@@ -1,6 +1,7 @@
 const Leave = require('../models/Leave');
 const User = require('../models/User');
 const { sendEmail, sendLeaveApprovalEmail, sendLeaveRejectionEmail, sendWelcomeEmail, sendAdminLeaveNotification } = require('../utils/emailService');
+const { createNotification, notifyAdmins } = require('../utils/notificationService');
 
 // Employee: Apply leave
 exports.applyLeave = async (req, res) => {
@@ -33,6 +34,15 @@ exports.applyLeave = async (req, res) => {
 
   // Send email notifications asynchronously to improve performance
   try {
+    await notifyAdmins({
+      actorId: currentUser._id,
+      type: 'leave_applied',
+      title: 'New leave request',
+      message: `${currentUser.name} applied for ${leaveType} leave from ${startDate} to ${endDate}.`,
+      link: '/admin',
+      metadata: { leaveId: leave._id, leaveType, startDate, endDate },
+    });
+
     // Notify HR/Admin BEFORE approval (non-blocking)
     sendAdminLeaveNotification(currentUser, leave).catch(e => 
       console.error('Failed to send admin leave notification:', e.message)
@@ -60,7 +70,7 @@ exports.applyLeave = async (req, res) => {
       `
     }).catch(e => console.error('Failed to send leave confirmation email:', e.message));
   } catch (e) {
-    console.error('Error initiating leave emails:', e.message);
+    console.error('Error initiating leave notifications:', e.message);
   }
   res.status(201).json(leave);
 };
@@ -163,11 +173,29 @@ exports.updateLeaveStatus = async (req, res) => {
   if (status === 'Approved') {
     user.leaveBalance -= leave.totalDays;
     await user.save();
+    createNotification({
+      recipientId: user._id,
+      actorId: req.user.userId,
+      type: 'leave_approved',
+      title: 'Leave request approved',
+      message: `Your ${leave.leaveType} leave request has been approved.`,
+      link: '/leave-history',
+      metadata: { leaveId: leave._id, status },
+    }).catch((err) => console.error('Failed to create leave approval notification:', err.message));
     // Notify Employee AFTER approval asynchronously
     sendLeaveApprovalEmail(user, leave).catch(err => 
       console.error('Failed to send leave approval email:', err.message)
     );
   } else {
+    createNotification({
+      recipientId: user._id,
+      actorId: req.user.userId,
+      type: 'leave_rejected',
+      title: 'Leave request rejected',
+      message: `Your ${leave.leaveType} leave request has been rejected.`,
+      link: '/leave-history',
+      metadata: { leaveId: leave._id, status },
+    }).catch((err) => console.error('Failed to create leave rejection notification:', err.message));
     // Notify Employee if rejected asynchronously
     sendLeaveRejectionEmail(user, leave).catch(err => 
       console.error('Failed to send leave rejection email:', err.message)

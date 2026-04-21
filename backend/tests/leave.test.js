@@ -4,15 +4,20 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 jest.mock('../utils/emailService', () => ({
+  sendEmail: jest.fn().mockResolvedValue({ success: true }),
   sendWelcomeEmail: jest.fn().mockResolvedValue({ success: true }),
   sendLeaveApprovalEmail: jest.fn().mockResolvedValue({ success: true }),
-  sendLeaveRejectionEmail: jest.fn().mockResolvedValue({ success: true })
+  sendLeaveRejectionEmail: jest.fn().mockResolvedValue({ success: true }),
+  sendAdminLeaveNotification: jest.fn().mockResolvedValue({ success: true }),
 }));
 
 const User = require('../models/User');
+const Admin = require('../models/Admin');
 const Leave = require('../models/Leave');
+const Notification = require('../models/Notification');
 const leaveController = require('../controllers/leaveController');
 const authMiddleware = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(express.json());
@@ -54,7 +59,9 @@ describe('Leave Controller', () => {
 
   beforeEach(async () => {
     await User.deleteMany({});
+    await Admin.deleteMany({});
     await Leave.deleteMany({});
+    await Notification.deleteMany({});
 
     user = await User.create({
       name: 'Employee',
@@ -65,13 +72,12 @@ describe('Leave Controller', () => {
       leaveBalance: 20
     });
 
-    admin = await User.create({
+    admin = await Admin.create({
       name: 'Admin',
       email: 'admin@example.com',
       password: await bcrypt.hash('adminpass123', 10),
       role: 'admin',
       dateOfJoining: new Date(),
-      leaveBalance: 20
     });
 
     userToken = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET);
@@ -95,6 +101,13 @@ describe('Leave Controller', () => {
       expect(res.body).toHaveProperty('leaveType', 'Casual');
       expect(res.body).toHaveProperty('totalDays', 3);
       expect(res.body).toHaveProperty('status', 'Pending');
+
+      const adminNotification = await Notification.findOne({
+        recipient: admin._id,
+        type: 'leave_applied',
+      });
+      expect(adminNotification).not.toBeNull();
+      expect(adminNotification.title).toBe('New leave request');
     });
 
     it('should return 400 if leave balance is insufficient', async () => {
@@ -177,8 +190,8 @@ describe('Leave Controller', () => {
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('status', 'Approved');
 
-      await user.reload();
-      expect(user.leaveBalance).toBe(17);
+      const updatedUser = await User.findById(user._id);
+      expect(updatedUser.leaveBalance).toBe(17);
     });
 
     it('should reject leave without reducing balance', async () => {
@@ -191,8 +204,8 @@ describe('Leave Controller', () => {
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('status', 'Rejected');
 
-      await user.reload();
-      expect(user.leaveBalance).toBe(20);
+      const updatedUser = await User.findById(user._id);
+      expect(updatedUser.leaveBalance).toBe(20);
     });
 
     it('should return 400 for invalid status', async () => {

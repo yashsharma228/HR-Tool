@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-import DigitalClock from "../components/DigitalClock";
-import "../components/digitalClock.css";
+import { useEffect, useMemo, useState } from "react";
 import {
   getMyLeaves,
   applyLeave,
@@ -13,15 +11,16 @@ import {
 import useAuth from "../hooks/useAuth";
 import { showToast } from "../components/Toast";
 import Loader from "../components/Loader";
-import AttendanceSection from "../components/AttendanceSection";
+import NotificationBell from "../components/NotificationBell";
+import "./DashboardModern.css";
 
 export default function EmployeeDashboard() {
-  // Date/time state
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
   const { user, refreshProfile } = useAuth();
   const [leaves, setLeaves] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -32,9 +31,10 @@ export default function EmployeeDashboard() {
     reason: "",
   });
   const [editingLeaveId, setEditingLeaveId] = useState(null);
-  const [attendanceToday, setAttendanceToday] = useState(null);
   const [loading, setLoading] = useState(false);
-  // const [attLoading, setAttLoading] = useState(false); // Removed duplicate declaration
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("dashboard");
+
   const approvedLeaves = leaves.filter((leave) => leave.status === "Approved").length;
   const presentDays = attendance.filter((record) => record.status === "Present").length;
 
@@ -45,7 +45,6 @@ export default function EmployeeDashboard() {
     return "status-chip status-rejected";
   };
 
-  // Fetch leaves and attendance
   const fetchAttendanceData = () => {
     setLoading(true);
     Promise.all([getMyLeaves(), getMyAttendance()])
@@ -53,38 +52,17 @@ export default function EmployeeDashboard() {
         setLeaves(leavesRes.data);
         setAttendance(attRes.data);
         refreshProfile();
-        // Set today's attendance using local date comparison
-        const today = new Date();
-        const todayUTCYear = today.getUTCFullYear();
-        const todayUTCMonth = today.getUTCMonth();
-        const todayUTCDate = today.getUTCDate();
-
-        const todayRecord = attRes.data.find((rec) => {
-          if (!rec.date) return false;
-          const recDate = new Date(rec.date);
-          return (
-            recDate.getUTCFullYear() === todayUTCYear &&
-            recDate.getUTCMonth() === todayUTCMonth &&
-            recDate.getUTCDate() === todayUTCDate
-          );
-        });
-        // If no record for today, clear attendanceToday
-        setAttendanceToday(todayRecord || null);
       })
       .catch(() => {
-        setAttendanceToday(null);
         showToast("Failed to load data", "error");
       })
       .finally(() => setLoading(false));
   };
 
-  // Removed auto-fetch and auto-refresh logic to prevent automatic page reload or data refresh
   useEffect(() => {
     fetchAttendanceData();
   }, []);
 
-
-  // Leave form handlers
   const handleLeaveChange = (e) => setLeaveForm({ ...leaveForm, [e.target.name]: e.target.value });
 
   const handleLeaveSubmit = async (e) => {
@@ -109,41 +87,6 @@ export default function EmployeeDashboard() {
     }
   };
 
-  // Attendance
-  const [attLoading, setAttLoading] = useState(false);
-  const handleCheckIn = async () => {
-    setAttLoading(true);
-    try {
-      const { data } = await checkIn();
-      setAttendance([data, ...attendance]);
-      setAttendanceToday(data);
-      showToast("Checked in successfully");
-    } catch (err) {
-      if (err.response?.data?.message === "Already checked in today") {
-        showToast("You have already checked in today.", "error");
-        fetchAttendanceData();
-      } else {
-        showToast(err.response?.data?.message || "Failed to check in", "error");
-      }
-    } finally {
-      setAttLoading(false);
-    }
-  };
-  const handleCheckOut = async () => {
-    setAttLoading(true);
-    try {
-      const { data } = await checkOut();
-      setAttendance([data, ...attendance.filter(a => a._id !== data._id)]);
-      setAttendanceToday(data);
-      showToast("Checked out successfully");
-    } catch (err) {
-      showToast(err.response?.data?.message || "Failed to check out", "error");
-    } finally {
-      setAttLoading(false);
-    }
-  };
-
-  // Edit/Delete leave (only pending)
   const handleDeleteLeave = async (id) => {
     if (!window.confirm("Delete this leave request?")) return;
     setLoading(true);
@@ -173,166 +116,251 @@ export default function EmployeeDashboard() {
     setLeaveForm({ leaveType: "Casual", startDate: "", endDate: "", reason: "" });
   };
 
-  return (
-    <div className="dashboard-shell mx-auto mt-6 w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-      <div className="hero-card animated-rise mb-6 rounded-2xl bg-linear-to-r from-cyan-600 via-indigo-600 to-violet-600 p-6 text-white shadow-xl relative overflow-hidden">
-        <span className="hero-glow animated-float -right-8 -top-8 h-28 w-28 bg-cyan-100" />
-        <span className="hero-glow left-16 -bottom-7 h-24 w-24 bg-indigo-200" />
-        <div className="absolute right-6 top-4 z-10">
-          <DigitalClock now={now} />
-        </div>
-        <h2 className="text-2xl font-bold sm:text-3xl">Welcome back, {user.name}</h2>
-        <p className="mt-2 text-sm text-cyan-100 sm:text-base">
-          Track leave and attendance in real time from your personal HR dashboard.
-        </p>
-        <h3 className="mt-4 text-lg font-semibold">Office Hours: 10:00 AM – 6:00 PM</h3>
-      </div>
+  const formatLongDate = (value) =>
+    new Date(value).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    });
+  const formatTime = (value) =>
+    new Date(value).toLocaleTimeString("en-GB", { hour12: false });
+  const recentAttendance = useMemo(() => attendance.slice(0, 3), [attendance]);
+  const recentLeaves = useMemo(() => leaves.slice(0, 3), [leaves]);
+  const leavePct = leaves.length ? Math.round((approvedLeaves / leaves.length) * 100) : 0;
+  const todayAttendance = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
+    return attendance.find((record) => {
+      const recordDate = new Date(record.date);
+      recordDate.setHours(0, 0, 0, 0);
+      return recordDate.getTime() === today.getTime();
+    }) || null;
+  }, [attendance]);
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="metric-tile animated-fade animated-float rounded-2xl p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Leave Balance</p>
-          <p className="mt-2 text-3xl font-bold text-indigo-700">{user.leaveBalance}</p>
-        </div>
-        <div className="metric-tile animated-fade rounded-2xl p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Leave Requests</p>
-          <p className="mt-2 text-3xl font-bold text-slate-800">{leaves.length}</p>
-        </div>
-        <div className="metric-tile animated-fade rounded-2xl p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Approved Leaves</p>
-          <p className="mt-2 text-3xl font-bold text-emerald-600">{approvedLeaves}</p>
-        </div>
-        <div className="metric-tile animated-fade rounded-2xl p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Present Days</p>
-          <p className="mt-2 text-3xl font-bold text-cyan-700">{presentDays}</p>
-        </div>
-      </div>
+  const handleCheckIn = async () => {
+    setAttendanceLoading(true);
+    try {
+      const { data } = await checkIn();
+      setAttendance((current) => [data, ...current.filter((item) => item._id !== data._id)]);
+      showToast("Checked in successfully");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to check in", "error");
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="premium-panel animated-rise rounded-2xl p-4">
-          <h3 className="mb-3 text-lg font-semibold text-slate-800">
-            {editingLeaveId ? "Edit Leave Request" : "Apply for Leave"}
-          </h3>
-          <form onSubmit={handleLeaveSubmit} className="space-y-3">
-            <select
-              name="leaveType"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              value={leaveForm.leaveType}
-              onChange={handleLeaveChange}
-            >
-              <option value="Casual">Casual</option>
-              <option value="Sick">Sick</option>
-              <option value="Paid">Paid</option>
-            </select>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                type="date"
-                name="startDate"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                value={leaveForm.startDate}
-                onChange={handleLeaveChange}
-                required
-              />
-              <input
-                type="date"
-                name="endDate"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                value={leaveForm.endDate}
-                onChange={handleLeaveChange}
-                required
-              />
+  const handleCheckOut = async () => {
+    setAttendanceLoading(true);
+    try {
+      const { data } = await checkOut();
+      setAttendance((current) => [data, ...current.filter((item) => item._id !== data._id)]);
+      showToast("Checked out successfully");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to check out", "error");
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const renderDashboardTab = () => (
+    <>
+      <section className="pro-stat-grid pro-animate-in">
+        <div className="pro-stat-card"><h4>Leave Balance</h4><p>{user.leaveBalance}</p><span>Remaining leaves</span></div>
+        <div className="pro-stat-card"><h4>Total Requests</h4><p>{leaves.length}</p><span>All leave requests</span></div>
+        <div className="pro-stat-card"><h4>Approved</h4><p>{approvedLeaves}</p><span>Approved leaves</span></div>
+        <div className="pro-stat-card"><h4>Present Days</h4><p>{presentDays}</p><span>Attendance marked</span></div>
+      </section>
+
+      <section className="pro-two-col pro-animate-in">
+        <div className="pro-panel">
+          <h3>Attendance Overview</h3>
+          <div className="pro-overview-row">
+            <div className="pro-ring">{leavePct}%</div>
+            <div>
+              <div className="pro-overview-main">{approvedLeaves} / {leaves.length || 0} <span>Approved</span></div>
+              <div className="pro-overview-sub">
+                <span>{presentDays} days present</span>
+                <span>{Math.max(leaves.length - approvedLeaves, 0)} pending/rejected</span>
+              </div>
             </div>
-            <textarea
-              name="reason"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              placeholder="Reason (optional)"
-              value={leaveForm.reason}
-              onChange={handleLeaveChange}
-              rows={3}
-            />
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="submit"
-                className="rounded-lg bg-linear-to-r from-indigo-600 to-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105 disabled:opacity-50"
-                disabled={loading}
-              >
-              {loading ? "Saving..." : editingLeaveId ? "Update Leave" : "Apply"}
-              </button>
-              {editingLeaveId && (
-                <button
-                  type="button"
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  onClick={handleCancelEdit}
-                >
-                  Cancel Edit
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-
-        <AttendanceSection />
-      </div>
-
-      <div className="premium-panel animated-rise mt-6 rounded-2xl p-4">
-        <h3 className="mb-3 text-lg font-semibold text-slate-800">Leave History</h3>
-        {loading ? <Loader /> : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-            <table className="interactive-table data-table min-w-175 w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-700">
-                <tr>
-                  <th className="px-3 py-3">Type</th>
-                  <th className="px-3 py-3">Period</th>
-                  <th className="px-3 py-3">Days</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3">Reason</th>
-                  <th className="px-3 py-3">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaves.map((leave) => (
-                  <tr key={leave._id} className="border-t border-slate-100 transition hover:bg-indigo-50/40">
-                    <td className="px-3 py-3 font-medium text-slate-700">{leave.leaveType}</td>
-                    <td className="px-3 py-3 text-slate-600">
-                      {new Date(leave.startDate).toLocaleDateString()} - {new Date(leave.endDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-3 py-3 text-slate-600">{leave.totalDays}</td>
-                    <td className="px-3 py-3">
-                      <span className={getStatusChipClass(leave.status)}>{leave.status}</span>
-                    </td>
-                    <td className="px-3 py-3 text-slate-600">{leave.reason || "-"}</td>
-                    <td className="px-3 py-3">
-                      {leave.status === "Pending" && (
-                        <>
-                          <button
-                            onClick={() => handleEditLeave(leave)}
-                            className="mr-2 rounded-md bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-200"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteLeave(leave._id)}
-                            className="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-200"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {leaves.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
-                      No leave records found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
           </div>
-        )}
+        </div>
+
+        <div className="pro-panel">
+          <h3>Recent Leave Activity</h3>
+          {recentLeaves.map((leave) => (
+            <div className="pro-list-row" key={leave._id}>
+              <div className="avatar">{leave.leaveType[0]}</div>
+              <div>
+                <strong>{leave.leaveType} Leave</strong>
+                <p>{leave.status} • {leave.totalDays} day(s)</p>
+              </div>
+            </div>
+          ))}
+          {recentLeaves.length === 0 && <p className="muted">No leave records yet.</p>}
+        </div>
+      </section>
+
+      <section className="pro-two-col pro-animate-in">
+        <div className="pro-panel">
+          <h3>Recent Attendance</h3>
+          {recentAttendance.map((item) => (
+            <div className="pro-list-row" key={item._id}>
+              <div className="avatar">{user.name[0]}</div>
+              <div>
+                <strong>{user.name}</strong>
+                <p>{item.status} at {new Date(item.date).toLocaleDateString()}</p>
+              </div>
+            </div>
+          ))}
+          {recentAttendance.length === 0 && <p className="muted">No attendance records yet.</p>}
+        </div>
+
+        <div className="pro-panel">
+          <h3>Recent Activity</h3>
+          {recentLeaves.map((leave) => (
+            <div className="pro-list-row" key={leave._id}>
+              <div className="avatar">{leave.leaveType[0]}</div>
+              <div>
+                <strong>{leave.leaveType} Leave</strong>
+                <p>{leave.status} • {new Date(leave.startDate).toLocaleDateString()}</p>
+              </div>
+            </div>
+          ))}
+          {recentLeaves.length === 0 && <p className="muted">No recent activity yet.</p>}
+        </div>
+      </section>
+    </>
+  );
+
+  const renderLeaveHistoryTab = () => (
+    <section className="pro-content-stack pro-animate-in">
+      <div className="pro-panel">
+        <h3>Apply / Edit Leave</h3>
+        <form onSubmit={handleLeaveSubmit} className="pro-form">
+          <select name="leaveType" value={leaveForm.leaveType} onChange={handleLeaveChange}>
+            <option value="Casual">Casual</option>
+            <option value="Sick">Sick</option>
+            <option value="Paid">Paid</option>
+          </select>
+          <div className="pro-form-row">
+            <input type="date" name="startDate" value={leaveForm.startDate} onChange={handleLeaveChange} required />
+            <input type="date" name="endDate" value={leaveForm.endDate} onChange={handleLeaveChange} required />
+          </div>
+          <textarea name="reason" value={leaveForm.reason} onChange={handleLeaveChange} placeholder="Reason (optional)" rows={3} />
+          <div className="pro-form-actions">
+            <button type="submit">{editingLeaveId ? "Update Leave" : "Apply Leave"}</button>
+            {editingLeaveId && <button type="button" className="ghost" onClick={handleCancelEdit}>Cancel</button>}
+          </div>
+        </form>
       </div>
+
+      <div className="pro-panel">
+        <h3>Leave History</h3>
+        {leaves.map((leave) => (
+          <div className="pro-list-row" key={leave._id}>
+            <div className="avatar">{leave.leaveType[0]}</div>
+            <div>
+              <strong>{leave.leaveType} Leave</strong>
+              <p>{leave.status} • {leave.totalDays} day(s) • {new Date(leave.startDate).toLocaleDateString()}</p>
+            </div>
+            {leave.status === "Pending" && (
+              <div className="inline-actions">
+                <button onClick={() => handleEditLeave(leave)}>Edit</button>
+                <button className="danger" onClick={() => handleDeleteLeave(leave._id)}>Delete</button>
+              </div>
+            )}
+          </div>
+        ))}
+        {leaves.length === 0 && <p className="muted">No leave records yet.</p>}
+      </div>
+    </section>
+  );
+
+  const renderAttendanceTab = () => (
+    <section className="pro-content-stack pro-animate-in">
+      <div className="pro-two-col">
+        <div className="pro-panel">
+          <h3>Apply Attendance</h3>
+          <div className="pro-attendance-card">
+            <div className="pro-attendance-status">
+              <span>Today&apos;s status</span>
+              <strong>{todayAttendance?.status || "Not marked"}</strong>
+            </div>
+            <div className="pro-attendance-meta">
+              <span>Check-in: {todayAttendance?.checkInTime ? new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not yet"}</span>
+              <span>Check-out: {todayAttendance?.checkOutTime ? new Date(todayAttendance.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not yet"}</span>
+            </div>
+            <div className="pro-form-actions">
+              <button type="button" onClick={handleCheckIn} disabled={attendanceLoading || !!todayAttendance?.checkInTime}>Check In</button>
+              <button type="button" className="ghost" onClick={handleCheckOut} disabled={attendanceLoading || !todayAttendance?.checkInTime || !!todayAttendance?.checkOutTime}>Check Out</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="pro-panel">
+          <h3>Attendance Summary</h3>
+          <div className="pro-mini-grid">
+            <div><strong>{presentDays}</strong><span>Present days</span></div>
+            <div><strong>{attendance.length}</strong><span>Total records</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="pro-panel">
+        <h3>Attendance History</h3>
+        {attendance.map((item) => (
+          <div className="pro-list-row" key={item._id}>
+            <div className="avatar">{user.name[0]}</div>
+            <div>
+              <strong>{new Date(item.date).toLocaleDateString()}</strong>
+              <p>{item.status} • Check-in {item.checkInTime ? new Date(item.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"} • Check-out {item.checkOutTime ? new Date(item.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}</p>
+            </div>
+          </div>
+        ))}
+        {attendance.length === 0 && <p className="muted">No attendance records yet.</p>}
+      </div>
+    </section>
+  );
+
+  return (
+    <div className="pro-shell">
+      <aside className="pro-sidebar">
+        <div className="pro-brand"><span>HR</span> HR Tool</div>
+        <div className="pro-search">Search</div>
+        <nav className="pro-nav">
+          <button className={activeTab === "dashboard" ? "active" : ""} onClick={() => setActiveTab("dashboard")}>Dashboard</button>
+          <button className={activeTab === "leave-history" ? "active" : ""} onClick={() => setActiveTab("leave-history")}>Leave History</button>
+          <button className={activeTab === "attendance" ? "active" : ""} onClick={() => setActiveTab("attendance")}>Attendance</button>
+        </nav>
+      </aside>
+
+      <main className="pro-main">
+        <header className="pro-topbar">
+          <section className="pro-greeting">
+            <h1>Good Morning, {user.name} 👋</h1>
+            <p>Here&apos;s your personal HR overview for today</p>
+          </section>
+          <div className="pro-right">
+            <NotificationBell />
+            <div className="pro-datetime">
+              <span>{formatLongDate(now)}</span>
+              <strong>{formatTime(now)}</strong>
+            </div>
+          </div>
+        </header>
+
+        {loading ? <Loader /> : (
+          activeTab === "dashboard"
+            ? renderDashboardTab()
+            : activeTab === "leave-history"
+              ? renderLeaveHistoryTab()
+              : renderAttendanceTab()
+        )}
+      </main>
     </div>
   );
 }

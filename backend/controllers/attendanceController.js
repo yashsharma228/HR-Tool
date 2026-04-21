@@ -21,6 +21,22 @@ exports.adminCheckIn = async (req, res) => {
   }
   attendance.isManualEntry = true;
   await attendance.save();
+
+  try {
+    const employee = await User.findById(userId);
+    if (employee) {
+      createNotification({
+        recipientId: employee._id,
+        actorId: req.user.userId,
+        type: 'attendance_checked_in_by_admin',
+        title: 'Attendance updated by admin',
+        message: 'An admin checked you in for today.',
+        link: '/employee',
+        metadata: { attendanceId: attendance._id, status: attendance.status },
+      }).catch(() => {});
+    }
+  } catch {}
+
   res.json(attendance);
 };
 
@@ -50,10 +66,28 @@ exports.adminCheckOut = async (req, res) => {
   attendance.workHours = ((attendance.checkOutTime - attendance.checkInTime) / (1000 * 60 * 60)).toFixed(2);
   attendance.isManualEntry = true;
   await attendance.save();
+
+  try {
+    const employee = await User.findById(userId);
+    if (employee) {
+      createNotification({
+        recipientId: employee._id,
+        actorId: req.user.userId,
+        type: 'attendance_checked_out_by_admin',
+        title: 'Attendance updated by admin',
+        message: 'An admin checked you out for today.',
+        link: '/employee',
+        metadata: { attendanceId: attendance._id, status: attendance.status },
+      }).catch(() => {});
+    }
+  } catch {}
+
   res.json(attendance);
 };
 const Attendance = require('../models/Attendance');
+const User = require('../models/User');
 const { sendEmail, sendAdminAttendanceNotification } = require('../utils/emailService');
+const { createNotification, notifyAdmins } = require('../utils/notificationService');
 
 // Office hours config
 const OFFICE_START_HOUR = 10;
@@ -93,9 +127,17 @@ exports.checkIn = async (req, res) => {
 
   // Send admin notification on check-in
   try {
-    const User = require('../models/User');
     const user = await User.findById(userId);
     if (user) {
+      await notifyAdmins({
+        actorId: user._id,
+        type: 'attendance_checked_in',
+        title: 'Employee checked in',
+        message: `${user.name} checked in for today.`,
+        link: '/admin',
+        metadata: { attendanceId: attendance._id, status: attendance.status },
+      });
+
       const { sendAdminAttendanceNotification } = require('../utils/emailService');
       sendAdminAttendanceNotification(user, attendance).catch(() => {});
     }
@@ -140,9 +182,17 @@ exports.checkOut = async (req, res) => {
 
   // Send admin notification on check-out
   try {
-    const User = require('../models/User');
     const user = await User.findById(userId);
     if (user) {
+      await notifyAdmins({
+        actorId: user._id,
+        type: 'attendance_checked_out',
+        title: 'Employee checked out',
+        message: `${user.name} checked out for today.`,
+        link: '/admin',
+        metadata: { attendanceId: attendance._id, status: attendance.status },
+      });
+
       const { sendAdminAttendanceNotification } = require('../utils/emailService');
       sendAdminAttendanceNotification(user, attendance).catch(() => {});
     }
