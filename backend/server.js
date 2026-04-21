@@ -9,21 +9,33 @@ console.log('JWT_SECRET loaded:', process.env.JWT_SECRET ? 'YES' : 'NO');
 
 const app = express();
 
-const allowedOrigins = [
+const allowedOrigins = new Set([
   'https://hr-tool-seven-lake.vercel.app',
-  'https://hr-tool-seven-lake.vercel.app/login',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-].map((origin) => origin.replace(/\/$/, ''));
+].map((origin) => origin.replace(/\/$/, '')));
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) {
+    return true;
+  }
+
+  const normalizedOrigin = origin.replace(/\/$/, '');
+  if (allowedOrigins.has(normalizedOrigin)) {
+    return true;
+  }
+
+  try {
+    const { protocol, hostname } = new URL(normalizedOrigin);
+    return protocol === 'https:' && hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+};
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    const normalizedOrigin = origin.replace(/\/$/, '');
-    if (allowedOrigins.includes(normalizedOrigin)) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
 
