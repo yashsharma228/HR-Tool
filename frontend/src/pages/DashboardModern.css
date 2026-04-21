@@ -11,6 +11,8 @@
   border-right: 1px solid #ececf3;
   background: #ffffff;
   padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
 }
 
 .pro-brand {
@@ -46,6 +48,72 @@
   margin-top: 18px;
   display: grid;
   gap: 8px;
+  align-content: start;
+}
+
+.pro-sidebar-profile {
+  margin-top: 18px;
+  border: 1px solid #ececf4;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fafbff, #f3f5ff);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.pro-sidebar-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pro-sidebar-profile-header strong {
+  display: block;
+  color: #20243f;
+}
+
+.pro-sidebar-profile-header p {
+  margin: 4px 0 0;
+  color: #7e84a2;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.pro-sidebar-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #6269ec, #6f8cf7);
+  color: #fff;
+  font-weight: 800;
+}
+
+.pro-sidebar-profile-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pro-sidebar-profile-meta span {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #8e93ab;
+}
+
+.pro-sidebar-profile-meta strong {
+  display: block;
+  margin-top: 4px;
+  color: #20243f;
+  font-size: 13px;
+}
+
+.pro-btn-sidebar {
+  width: 100%;
+  padding: 10px 14px;
 }
 
 .pro-nav button {
@@ -53,9 +121,11 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
-  padding: 10px 12px;
+  padding: 6px 10px;
   border-radius: 10px;
   font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
   color: #6a6f8f;
   transition: background-color .2s ease, color .2s ease, transform .2s ease;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getAllLeaves,
   getAllUsers,
@@ -12,11 +13,15 @@ import {
 import { showToast } from "../components/Toast";
 import Loader from "../components/Loader";
 import NotificationBell from "../components/NotificationBell";
+import SidebarProfileCard from "../components/SidebarProfileCard";
+import useAuth from "../hooks/useAuth";
 import "./DashboardModern.css";
 
 const PRESENT_STATUSES = ["Present", "Late", "Half-day"];
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [now, setNow] = useState(new Date());
   const [leaves, setLeaves] = useState([]);
   const [users, setUsers] = useState([]);
@@ -127,6 +132,11 @@ export default function AdminDashboard() {
 
     fetchReports();
   }, [activeTab, reportType, reportYear, reportMonth, reportEmployeeId]);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   const formatLongDate = (value) =>
     new Date(value).toLocaleDateString("en-US", {
@@ -810,12 +820,13 @@ export default function AdminDashboard() {
           <button className={activeTab === "reports" ? "active" : ""} onClick={() => setActiveTab("reports")}>Reports</button>
           <button className={activeTab === "system-admin" ? "active" : ""} onClick={() => setActiveTab("system-admin")}>System Admin</button>
         </nav>
+        <SidebarProfileCard user={user} onLogout={handleLogout} />
       </aside>
 
       <main className="pro-main">
         <header className="pro-topbar">
           <section className="pro-greeting">
-            <h1>Good Morning, Yash 👋</h1>
+            <h1>Good Morning, {user?.name || "Admin"} 👋</h1>
             <p>Organizational Control Center</p>
           </section>
           <div className="pro-right">

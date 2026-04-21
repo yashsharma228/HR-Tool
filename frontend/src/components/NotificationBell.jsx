@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import {
+  clearMyNotifications,
+  deleteNotification,
   getMyNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
 } from "../services/api";
 
 export default function NotificationBell({ className = "" }) {
@@ -34,13 +34,9 @@ export default function NotificationBell({ className = "" }) {
 
   const handleNotificationClick = async (notification) => {
     try {
+      await deleteNotification(notification._id);
+      setNotifications((current) => current.filter((item) => item._id !== notification._id));
       if (!notification.read) {
-        await markNotificationRead(notification._id);
-        setNotifications((current) =>
-          current.map((item) =>
-            item._id === notification._id ? { ...item, read: true } : item
-          )
-        );
         setUnreadCount((current) => Math.max(current - 1, 0));
       }
     } catch {}
@@ -51,10 +47,10 @@ export default function NotificationBell({ className = "" }) {
     }
   };
 
-  const handleMarkAllRead = async () => {
+  const handleClearAll = async () => {
     try {
-      await markAllNotificationsRead();
-      setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+      await clearMyNotifications();
+      setNotifications([]);
       setUnreadCount(0);
     } catch {}
   };
@@ -112,11 +108,11 @@ export default function NotificationBell({ className = "" }) {
               <p className="text-xs text-slate-500">{unreadCount} unread</p>
             </div>
             <button
-              onClick={handleMarkAllRead}
+              onClick={handleClearAll}
               className="text-xs font-semibold text-indigo-600 transition hover:text-indigo-800"
-              disabled={!unreadCount}
+              disabled={!notifications.length}
             >
-              Mark all read
+              Clear all
             </button>
           </div>
 

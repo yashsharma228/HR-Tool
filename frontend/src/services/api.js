@@ -72,6 +72,8 @@ export const deleteUser = (id) => API.delete(`/users/${id}`);
 export const getMyNotifications = (limit = 12) => API.get("/notifications", { params: { limit } });
 export const markNotificationRead = (id) => API.patch(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => API.patch("/notifications/read-all");
+export const deleteNotification = (id) => API.delete(`/notifications/${id}`);
+export const clearMyNotifications = () => API.delete("/notifications");
 
 export const getProfile = async () => {
   const { data } = await API.get("/users/me");

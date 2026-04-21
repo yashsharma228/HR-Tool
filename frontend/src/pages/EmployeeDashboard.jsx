@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getMyLeaves,
   applyLeave,
@@ -12,16 +13,18 @@ import useAuth from "../hooks/useAuth";
 import { showToast } from "../components/Toast";
 import Loader from "../components/Loader";
 import NotificationBell from "../components/NotificationBell";
+import SidebarProfileCard from "../components/SidebarProfileCard";
 import "./DashboardModern.css";
 
 export default function EmployeeDashboard() {
+  const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, logout } = useAuth();
   const [leaves, setLeaves] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [leaveForm, setLeaveForm] = useState({
@@ -62,6 +65,11 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     fetchAttendanceData();
   }, []);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   const handleLeaveChange = (e) => setLeaveForm({ ...leaveForm, [e.target.name]: e.target.value });
 
@@ -336,6 +344,7 @@ export default function EmployeeDashboard() {
           <button className={activeTab === "leave-history" ? "active" : ""} onClick={() => setActiveTab("leave-history")}>Leave History</button>
           <button className={activeTab === "attendance" ? "active" : ""} onClick={() => setActiveTab("attendance")}>Attendance</button>
         </nav>
+        <SidebarProfileCard user={user} onLogout={handleLogout} />
       </aside>
 
       <main className="pro-main">

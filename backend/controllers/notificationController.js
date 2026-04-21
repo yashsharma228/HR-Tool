@@ -49,3 +49,29 @@ exports.markAllNotificationsRead = async (req, res) => {
     res.status(500).json({ message: 'Failed to mark notifications as read', error: error.message });
   }
 };
+
+exports.deleteNotification = async (req, res) => {
+  try {
+    const notification = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      recipient: req.user.userId,
+    });
+
+    if (!notification) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+
+    res.json({ message: 'Notification cleared' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to clear notification', error: error.message });
+  }
+};
+
+exports.clearMyNotifications = async (req, res) => {
+  try {
+    await Notification.deleteMany({ recipient: req.user.userId });
+    res.json({ message: 'Notifications cleared' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to clear notifications', error: error.message });
+  }
+};
