@@ -342,7 +342,7 @@ export default function EmployeeDashboard() {
         <header className="pro-topbar">
           <section className="pro-greeting">
             <h1>Good Morning, {user.name} 👋</h1>
-            <p>Here&apos;s your personal HR overview for today</p>
+            <p>My Workday Overview</p>
           </section>
           <div className="pro-right">
             <NotificationBell />

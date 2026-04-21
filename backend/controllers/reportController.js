@@ -1,6 +1,7 @@
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
 const User = require('../models/User');
+const { calculateDailyAttendanceStats, getCutoffTime } = require('../utils/attendanceSummary');
 
 const OFFICE_START_HOUR = 10;
 const OFFICE_START_MIN = 0;
@@ -189,8 +190,14 @@ async function getScopedEmployees(req, requestedUserId) {
   return User.find(filter).select('_id name email');
 }
 
-function buildAttendanceAnalyticsPayload({ type, range, employees, attendanceRecords, approvedLeaves }) {
+async function buildAttendanceAnalyticsPayload({ type, range, employees, attendanceRecords, approvedLeaves }) {
   const workingDates = getWorkingDates(range.start, range.end);
+  const now = new Date();
+  const trendReferenceDate = startOfDay(range.end < now ? range.end : now);
+  const rangeIncludesToday = trendReferenceDate >= startOfDay(range.start) && trendReferenceDate <= endOfDay(range.end);
+  const liveTodayStats = rangeIncludesToday ? await calculateDailyAttendanceStats(trendReferenceDate) : null;
+  const liveTodayCutoff = liveTodayStats ? getCutoffTime(trendReferenceDate) : null;
+  const useFinalizedTodayAbsent = liveTodayStats ? now >= liveTodayCutoff : false;
   const attendanceLookup = buildAttendanceLookup(attendanceRecords);
   const leaveLookup = buildLeaveLookup(approvedLeaves);
   const employeeRows = employees.map((employee) => {
@@ -262,12 +269,25 @@ function buildAttendanceAnalyticsPayload({ type, range, employees, attendanceRec
     { present: 0, absent: 0, leave: 0 }
   );
 
-  const todayKey = getDateKey(new Date());
+  const todayKey = getDateKey(trendReferenceDate);
   const todayRows = rankedRows.map((row) => row.records.find((record) => getDateKey(record.date) === todayKey)).filter(Boolean);
-  const presentToday = todayRows.filter((row) => row.status === 'Present').length;
-  const onLeaveToday = todayRows.filter((row) => row.status === 'Leave').length;
-  const absentToday = Math.max(totalEmployees - presentToday - onLeaveToday, 0);
-  const attendancePercentageToday = totalEmployees ? Number(((presentToday / totalEmployees) * 100).toFixed(1)) : 0;
+  const savedPresentToday = todayRows.filter((row) => row.status === 'Present').length;
+  const savedOnLeaveToday = todayRows.filter((row) => row.status === 'Leave').length;
+  const savedAbsentToday = Math.max(totalEmployees - savedPresentToday - savedOnLeaveToday, 0);
+  const savedAttendancePercentageToday = totalEmployees ? Number(((savedPresentToday / totalEmployees) * 100).toFixed(1)) : 0;
+  const presentToday = liveTodayStats ? liveTodayStats.presentToday : savedPresentToday;
+  const onLeaveToday = liveTodayStats ? liveTodayStats.onLeave : savedOnLeaveToday;
+  const absentToday = liveTodayStats
+    ? (useFinalizedTodayAbsent ? liveTodayStats.absentToday : liveTodayStats.yetToCheckIn)
+    : savedAbsentToday;
+  const attendancePercentageToday = liveTodayStats ? liveTodayStats.attendancePercent : savedAttendancePercentageToday;
+  const currentDayTrend = {
+    label: trendReferenceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    date: trendReferenceDate,
+    present: presentToday,
+    total: liveTodayStats ? liveTodayStats.totalEmployees : totalEmployees,
+    attendancePercentage: attendancePercentageToday,
+  };
 
   let dailyTrend;
   if (type === 'yearly') {
@@ -287,17 +307,25 @@ function buildAttendanceAnalyticsPayload({ type, range, employees, attendanceRec
     dailyTrend = workingDates.map((date) => {
       const key = getDateKey(date);
       const dayRecords = rankedRows.map((row) => row.records.find((record) => getDateKey(record.date) === key)).filter(Boolean);
-      const present = dayRecords.filter((record) => record.status === 'Present').length;
-      const absent = dayRecords.filter((record) => record.status === 'Absent').length;
-      const leave = dayRecords.filter((record) => record.status === 'Leave').length;
+      const isCurrentWorkingDay = liveTodayStats && getDateKey(date) === getDateKey(trendReferenceDate);
+      const present = isCurrentWorkingDay
+        ? liveTodayStats.presentToday
+        : dayRecords.filter((record) => record.status === 'Present').length;
+      const absent = isCurrentWorkingDay
+        ? (useFinalizedTodayAbsent ? liveTodayStats.absentToday : liveTodayStats.yetToCheckIn)
+        : dayRecords.filter((record) => record.status === 'Absent').length;
+      const leave = isCurrentWorkingDay
+        ? liveTodayStats.onLeave
+        : dayRecords.filter((record) => record.status === 'Leave').length;
+      const total = isCurrentWorkingDay ? liveTodayStats.totalEmployees : totalEmployees;
       return {
         label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         date,
         present,
         absent,
         leave,
-        total: totalEmployees,
-        attendancePercentage: totalEmployees ? Number(((present / totalEmployees) * 100).toFixed(1)) : 0,
+        total,
+        attendancePercentage: total ? Number(((present / total) * 100).toFixed(1)) : 0,
       };
     });
   }
@@ -325,6 +353,7 @@ function buildAttendanceAnalyticsPayload({ type, range, employees, attendanceRec
       lowAttendanceEmployees,
     },
     breakdown,
+    currentDayTrend,
     ranking: rankedRows,
     dailyTrend,
     employeeRows: rankedRows,
@@ -428,7 +457,7 @@ async function getReportData(req) {
 exports.getAttendanceAnalytics = async (req, res) => {
   try {
     const reportData = await getReportData(req);
-    const attendancePayload = buildAttendanceAnalyticsPayload({
+    const attendancePayload = await buildAttendanceAnalyticsPayload({
       type: reportData.type,
       range: reportData.range,
       employees: reportData.employees,
@@ -456,7 +485,7 @@ exports.getLeaveReport = async (req, res) => {
 exports.getSummaryAnalytics = async (req, res) => {
   try {
     const reportData = await getReportData(req);
-    const attendancePayload = buildAttendanceAnalyticsPayload({
+    const attendancePayload = await buildAttendanceAnalyticsPayload({
       type: reportData.type,
       range: reportData.range,
       employees: reportData.employees,

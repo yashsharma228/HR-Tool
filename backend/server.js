@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const { startDailyAttendanceSummaryJob } = require('./jobs/dailyAttendanceSummaryJob');
 
 console.log('JWT_SECRET loaded:', process.env.JWT_SECRET ? 'YES' : 'NO');
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 // Connect Database
 connectDB();
+startDailyAttendanceSummaryJob();
 
 
 

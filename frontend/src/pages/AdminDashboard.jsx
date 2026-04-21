@@ -41,15 +41,19 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchDashboardStats = async () => {
-    setStatsLoading(true);
+  const fetchDashboardStats = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setStatsLoading(true);
+    }
     try {
       const { data } = await getAdminDashboardStats();
       setDashboardStats(data);
     } catch {
       setDashboardStats(null);
     } finally {
-      setStatsLoading(false);
+      if (!silent) {
+        setStatsLoading(false);
+      }
     }
   };
 
@@ -109,6 +113,14 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    const interval = setInterval(() => {
+      fetchDashboardStats({ silent: true });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     if (activeTab !== "reports") {
       return;
     }
@@ -132,6 +144,25 @@ export default function AdminDashboard() {
     : "0 / 0";
 
   const presentPct = Number(dashboardStats?.attendancePercent || 0);
+  const attendanceCutoff = useMemo(() => {
+    const cutoff = new Date(now);
+    cutoff.setHours(18, 0, 0, 0);
+    return cutoff;
+  }, [now]);
+  const isAfterAttendanceCutoff = now >= attendanceCutoff;
+  const livePresentCount = dashboardStats?.presentToday || 0;
+  const liveLeaveCount = dashboardStats?.onLeave || 0;
+  const liveOutstandingCount = isAfterAttendanceCutoff
+    ? (dashboardStats?.absentToday || 0)
+    : (dashboardStats?.yetToCheckIn ?? Math.max((dashboardStats?.totalEmployees || 0) - livePresentCount - liveLeaveCount, 0));
+  const statusPanelTitle = isAfterAttendanceCutoff ? "Today's Attendance Summary" : "Live Attendance Status";
+  const statusThirdLabel = isAfterAttendanceCutoff ? "Absent" : "Yet to Check-in";
+  const statusThirdCaption = isAfterAttendanceCutoff ? "Finalized after 6:00 PM" : "Will finalize at 6:00 PM";
+  const topThirdCardLabel = statusThirdLabel;
+  const topThirdCardCaption = isAfterAttendanceCutoff ? "Final day status" : "Pending today's check-in";
+  const trendGraphTitle = `${reportType.charAt(0).toUpperCase()}${reportType.slice(1)} Trend Graph`;
+  const todayTrendLabel = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const currentMonthTrendLabel = now.toLocaleDateString("default", { month: "short" });
   const pendingLeaves = useMemo(
     () => leaves.filter((leave) => leave.status === "Pending"),
     [leaves]
@@ -185,6 +216,7 @@ export default function AdminDashboard() {
     () => getReportRange(reportType, reportYear, reportMonth, now),
     [reportType, reportYear, reportMonth, now]
   );
+  const isCurrentDayInSelectedRange = now >= reportRange.start && now <= reportRange.end;
 
   const filteredAttendance = useMemo(
     () =>
@@ -265,6 +297,67 @@ export default function AdminDashboard() {
     () => buildTrendData(filteredAttendance, reportRange, reportType),
     [filteredAttendance, reportRange, reportType]
   );
+  const liveTrendPoint = useMemo(() => {
+    const total = dashboardStats?.totalEmployees || reportUsers.length || 0;
+    const present = livePresentCount;
+    const leave = liveLeaveCount;
+    const absent = liveOutstandingCount;
+
+    return {
+      label: reportType === "yearly" ? `${currentMonthTrendLabel} (Current)` : `${todayTrendLabel} (Today)`,
+      rawLabel: reportType === "yearly" ? currentMonthTrendLabel : todayTrendLabel,
+      date: new Date(now),
+      present,
+      leave,
+      absent,
+      total,
+      attendancePercentage: total ? Number(((present / total) * 100).toFixed(1)) : 0,
+    };
+  }, [currentMonthTrendLabel, dashboardStats?.totalEmployees, liveLeaveCount, liveOutstandingCount, livePresentCount, now, reportType, reportUsers.length, todayTrendLabel]);
+  const attendanceTrendItems = useMemo(() => {
+    const source = attendanceAnalytics?.dailyTrend || [];
+    if (!source.length) {
+      return isCurrentDayInSelectedRange ? [liveTrendPoint] : [];
+    }
+
+    if (!isCurrentDayInSelectedRange) {
+      return source;
+    }
+
+    const matchLabel = liveTrendPoint.rawLabel;
+    let replaced = false;
+    const merged = source.map((item) => {
+      if (item.label === matchLabel) {
+        replaced = true;
+        return { ...item, ...liveTrendPoint };
+      }
+      return item;
+    });
+
+    return replaced ? merged : [...merged, liveTrendPoint];
+  }, [attendanceAnalytics?.dailyTrend, isCurrentDayInSelectedRange, liveTrendPoint]);
+  const summaryTrendItems = useMemo(() => {
+    const source = summaryAnalytics?.trend || [];
+    if (!source.length) {
+      return isCurrentDayInSelectedRange ? [liveTrendPoint] : [];
+    }
+
+    if (!isCurrentDayInSelectedRange) {
+      return source;
+    }
+
+    const matchLabel = liveTrendPoint.rawLabel;
+    let replaced = false;
+    const merged = source.map((item) => {
+      if (item.label === matchLabel) {
+        replaced = true;
+        return { ...item, ...liveTrendPoint };
+      }
+      return item;
+    });
+
+    return replaced ? merged : [...merged, liveTrendPoint];
+  }, [isCurrentDayInSelectedRange, liveTrendPoint, summaryAnalytics?.trend]);
 
   const bestAttendanceEmployee = useMemo(
     () => [...attendanceRows].sort((left, right) => right.attendancePercent - left.attendancePercent)[0] || null,
@@ -312,7 +405,7 @@ export default function AdminDashboard() {
       <section className="pro-stat-grid pro-animate-in">
         <div className="pro-stat-card"><h4>Active Workforce</h4><p>{dashboardStats?.totalEmployees || users.length}</p><span>Total employees</span></div>
         <div className="pro-stat-card"><h4>Present Today</h4><p>{dashboardStats?.presentToday || 0}</p><span>Clocked in</span></div>
-        <div className="pro-stat-card"><h4>Absent Today</h4><p>{dashboardStats?.absentToday || 0}</p><span>Not present</span></div>
+        <div className="pro-stat-card"><h4>{topThirdCardLabel}</h4><p>{liveOutstandingCount}</p><span>{topThirdCardCaption}</span></div>
         <div className="pro-stat-card"><h4>On Leave</h4><p>{dashboardStats?.onLeave || 0}</p><span>Approved leave</span></div>
       </section>
 
@@ -325,7 +418,7 @@ export default function AdminDashboard() {
               <div className="pro-overview-main">{attendanceRatio} <span>Present</span></div>
               <div className="pro-overview-sub">
                 <span>{dashboardStats?.presentToday || 0} employees present</span>
-                <span>{dashboardStats?.absentToday || 0} employees absent</span>
+                <span>{liveOutstandingCount} employees {isAfterAttendanceCutoff ? "absent" : "yet to check in"}</span>
               </div>
             </div>
           </div>
@@ -446,25 +539,37 @@ export default function AdminDashboard() {
                 <h3>Attendance Trend</h3>
               </div>
               <div className="pro-chart-bars">
-                {attendanceAnalytics.dailyTrend.map((item) => (
+                {attendanceTrendItems.filter(Boolean).map((item) => (
                   <div key={item.label} className="pro-chart-bar-group">
                     <span>{item.label}</span>
                     <div className="pro-chart-bar-track">
                       <div className="pro-chart-bar-fill" style={{ width: `${item.attendancePercentage || 0}%` }} />
                     </div>
-                    <strong>{item.attendancePercentage || 0}%</strong>
+                    <strong>{item.present}/{item.total} present</strong>
                   </div>
                 ))}
               </div>
+              {!attendanceTrendItems.length && (
+                <p className="muted">No trend data available for the selected period.</p>
+              )}
+              {attendanceTrendItems.length > 0 && (
+                <p className="muted">Attendance trend is shown for the selected report period.</p>
+              )}
             </div>
 
             <div className="pro-panel">
-              <h3>Present vs Absent vs Leave</h3>
+              <h3>{statusPanelTitle}</h3>
               <div className="pro-breakdown-list">
-                <div className="pro-breakdown-row"><span>Present</span><strong>{attendanceAnalytics.breakdown.present}</strong></div>
-                <div className="pro-breakdown-row"><span>Absent</span><strong>{attendanceAnalytics.breakdown.absent}</strong></div>
-                <div className="pro-breakdown-row"><span>Leave</span><strong>{attendanceAnalytics.breakdown.leave}</strong></div>
+                <div className="pro-breakdown-row"><span>Present</span><strong>{livePresentCount}</strong></div>
+                <div className="pro-breakdown-row"><span>On Leave</span><strong>{liveLeaveCount}</strong></div>
+                <div className="pro-breakdown-row"><span>{statusThirdLabel}</span><strong>{liveOutstandingCount}</strong></div>
               </div>
+              <p className="muted">
+                {isAfterAttendanceCutoff
+                  ? "Final count uses total employees - (present + approved leave)."
+                  : "This panel auto-refreshes and shows employees who still have not checked in today."}
+              </p>
+              <p className="muted">{statusThirdCaption}</p>
             </div>
           </section>
 
@@ -603,9 +708,9 @@ export default function AdminDashboard() {
             </div>
 
             <div className="pro-panel">
-              <h3>Monthly Trend Graph</h3>
+              <h3>{trendGraphTitle}</h3>
               <div className="pro-chart-bars">
-                {summaryAnalytics.trend.map((item) => (
+                {summaryTrendItems.map((item) => (
                   <div key={item.label} className="pro-chart-bar-group compact">
                     <span>{item.label}</span>
                     <div className="pro-chart-bar-track">
@@ -711,7 +816,7 @@ export default function AdminDashboard() {
         <header className="pro-topbar">
           <section className="pro-greeting">
             <h1>Good Morning, Yash 👋</h1>
-            <p>Here&apos;s your team overview for today</p>
+            <p>Organizational Control Center</p>
           </section>
           <div className="pro-right">
             <NotificationBell />
