@@ -4,6 +4,16 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sendWelcomeEmail } = require('../utils/emailService');
 
+const COOKIE_NAME = 'token';
+const isProduction = process.env.NODE_ENV === 'production';
+
+const getCookieOptions = () => ({
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
+  maxAge: 24 * 60 * 60 * 1000,
+});
+
 const getToken = (user, role) => {
   if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET is not defined');
@@ -11,7 +21,7 @@ const getToken = (user, role) => {
   return jwt.sign(
     { userId: user._id.toString(), role: role || user.role },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '1d' }
   );
 };
 
@@ -23,6 +33,26 @@ const sanitizeUser = (user) => ({
   dateOfJoining: user.dateOfJoining,
   leaveBalance: user.leaveBalance || 0,
 });
+
+const attachAuthCookie = (res, token) => {
+  res.cookie(COOKIE_NAME, token, getCookieOptions());
+};
+
+const clearAuthCookie = (res) => {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+  });
+};
+
+const findCurrentUser = async ({ userId, role }) => {
+  if (role === 'admin') {
+    return Admin.findById(userId);
+  }
+
+  return User.findById(userId);
+};
 
 // Public registration only creates employees.
 exports.register = async (req, res) => {
@@ -74,8 +104,9 @@ exports.register = async (req, res) => {
     );
 
     const token = getToken(user, user.role);
+    attachAuthCookie(res, token);
     console.log('Registration successful for:', email);
-    res.status(201).json({ token, user: sanitizeUser(user) });
+    res.status(201).json({ user: sanitizeUser(user) });
   } catch (error) {
     console.error('Registration error details:', {
       message: error.message,
@@ -135,10 +166,31 @@ exports.login = async (req, res) => {
     }
 
     const token = getToken(user, role);
+    attachAuthCookie(res, token);
     console.log(`[LOGIN SUCCESS] User: ${email}, Role: ${role}`);
-    res.json({ token, user: { ...sanitizeUser(user), role } });
+    res.json({ user: { ...sanitizeUser(user), role } });
   } catch (error) {
     console.error('[LOGIN ERROR] Full details:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
+};
+
+exports.me = async (req, res) => {
+  try {
+    const user = await findCurrentUser(req.user);
+
+    if (!user) {
+      clearAuthCookie(res);
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ user: sanitizeUser({ ...user.toObject(), role: req.user.role || user.role }) });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.logout = async (req, res) => {
+  clearAuthCookie(res);
+  res.json({ message: 'Logged out successfully' });
 };

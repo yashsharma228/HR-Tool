@@ -7,16 +7,7 @@ import axios from "axios";
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
-});
-
-// Attach token to requests
-API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  // Don't attach token for login or register requests
-  if (token && !config.url.includes("/auth/login") && !config.url.includes("/auth/register")) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+  withCredentials: true,
 });
 
 // Handle 401 Unauthorized globally
@@ -24,9 +15,8 @@ API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem("token");
       localStorage.removeItem("user");
-      // Redirect if needed, or let the context handle it
+      window.dispatchEvent(new Event("auth:unauthorized"));
     }
     return Promise.reject(error);
   }
@@ -35,6 +25,8 @@ API.interceptors.response.use(
 // Auth
 export const loginUser = (data) => API.post("/auth/login", data);
 export const registerUser = (data) => API.post("/auth/register", data);
+export const logoutUser = () => API.post("/auth/logout");
+export const getSessionUser = () => API.get("/auth/me");
 
 // Update Profile
 export const updateProfile = (data) => API.put("/users/me", data);
@@ -76,6 +68,6 @@ export const deleteNotification = (id) => API.delete(`/notifications/${id}`);
 export const clearMyNotifications = () => API.delete("/notifications");
 
 export const getProfile = async () => {
-  const { data } = await API.get("/users/me");
-  return data;
+  const { data } = await getSessionUser();
+  return data.user;
 };

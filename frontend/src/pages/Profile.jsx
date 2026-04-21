@@ -4,7 +4,7 @@ import { showToast } from "../components/Toast";
 import { updateProfile } from "../services/api";
 
 export default function Profile() {
-  const { user, login, token } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [form, setForm] = useState({
     name: user?.name || "",
     email: user?.email || "",
@@ -19,8 +19,8 @@ export default function Profile() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await updateProfile(form, token);
-      login(data, token); // update context
+      await updateProfile(form);
+      await refreshProfile();
       showToast("Profile updated");
     } catch (err) {
       showToast(err.response?.data?.message || "Update failed", "error");

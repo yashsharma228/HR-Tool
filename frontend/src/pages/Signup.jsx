@@ -23,7 +23,7 @@ export default function Signup() {
     setLoading(true);
     try {
       const { data } = await registerUser(form);
-      login(data.user, data.token);
+      login(data.user);
       showToast("Signup successful");
       navigate("/employee");
     } catch (err) {

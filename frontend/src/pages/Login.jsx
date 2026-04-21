@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true);
     try {
       const { data } = await loginUser(form);
-      login(data.user, data.token);
+      login(data.user);
       showToast("Login successful");
       if (data.user.role === "admin") navigate("/admin");
       else navigate("/employee");

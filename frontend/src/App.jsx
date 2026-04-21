@@ -4,6 +4,7 @@ import AttendanceAnalytics from "./pages/AttendanceAnalytics";
 import NavbarAttendanceCalendar from "./components/NavbarAttendanceCalendar";
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import useAuth from "./hooks/useAuth";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 
@@ -21,7 +22,7 @@ function App() {
       <Toast />
       <div className="min-h-screen bg-gray-50">
         <Routes>
-          <Route path="/" element={<Navigate to="/login" />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<Login />} />
           {/* ForgotPassword route removed */}
           <Route path="/signup" element={<Signup />} />
@@ -84,6 +85,20 @@ function App() {
       </div>
     </Router>
   );
+}
+
+function RootRedirect() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="text-center mt-10">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Navigate to={user.role === "admin" ? "/admin" : "/employee"} replace />;
 }
 
 export default App;
